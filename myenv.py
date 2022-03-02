@@ -17,7 +17,7 @@ class TrackingEnv(gym.Env):
         super().__init__()
         # 参考速度
         self.refV = 20/3.6
-        self.curve = 1/30
+        self.curve = 1/10
 
         # 车辆参数
         # TODO: 参数是否合理？
@@ -121,7 +121,15 @@ class TrackingEnv(gym.Env):
 
     def policyTest(self, policy):
         # 初始化
-        state = self.reset(1)
+        state = torch.empty([1, self.stateDim])
+        state[:, 0] = 0  # x
+        state[:, 1] = 0  # y
+        state[:, 2] = 0.03332  # phi
+        state[:, 3] = self.refV  # u
+        state[:, 4] = 0  # v
+        state[:, 5] = 0  # omega
+        state[:, 6:] = torch.stack(self.referencePoint(state[:, 0]), -1)
+
         count = 0
         plt.ion()
         plt.figure()
@@ -130,15 +138,17 @@ class TrackingEnv(gym.Env):
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color = 'gray')
-        while(count < 500):
+        while(count < 100):
             refState = self.calRefState(state)
             control = policy(refState).detach()
             state, reward, done = self.model(state, control)
-            plt.scatter(state[:, 0], state[:, 1], color = 'red', s = 20)
-            plt.title('x='+str(state[:, 0].data)+',\
-            y='+str(state[:, 1].data)+',reward='+str(reward.data))
+            plt.scatter(state[:, 0], state[:, 1], color = 'red', s = 5)
+            plt.scatter(state[:, 6], state[:, 7], color = 'blue', s = 5)
+            plt.title('x='+str(round(state[:, 0].item(),1))+\
+                ',y='+str(round(state[:, 1].item(),1))+\
+                ',reward='+str(round(reward.item(),1)))
             plt.pause(0.1)
+            count += 1
         plt.ioff()
-        plt.show()
 
 
