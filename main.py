@@ -27,6 +27,8 @@ actionSpace = env.actionSpace
 policy = Actor(stateDim, actionDim, config.lrPolicy)
 value = Critic(stateDim, 1, config.lrValue)
 log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+os.makedirs(log_dir, exist_ok=True)
+
 if isTrain:
     print("----------------------Start Training!----------------------")
     train = Train(env)
@@ -44,17 +46,18 @@ if isTrain:
             print("iteration: {}, LossValue: {}, LossPolicy: {}".format(
                 iterarion, train.lossValue[-1], train.lossPolicy[-1]))
         if iterarion % config.iterationSave == 0:
-            pass
+            env.policyTest(policy, iterarion, log_dir)
         iterarion += 1
-    env.policyTest(policy)
-    os.makedirs(log_dir, exist_ok=True)
+    env.policyTest(policy, iterarion, log_dir)
     plt.figure()
     plt.plot(range(len(train.lossValue)), train.lossValue)
     plt.xlabel('iteration')
     plt.ylabel('Value Loss')
     plt.savefig(log_dir + '/value_loss.png')
+    plt.close()
     plt.figure()
     plt.plot(range(len(train.lossPolicy)), train.lossPolicy)
     plt.xlabel('iteration')
     plt.ylabel('Policy Loss')
     plt.savefig(log_dir + '/policy_loss.png')
+    plt.close()

@@ -26,7 +26,7 @@ class Actor(nn.Module):
         # optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, 100, gamma=0.9, last_epoch=-1)
+            self.opt, 500, gamma=0.9, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])
@@ -72,7 +72,7 @@ class Critic(nn.Module):
         # initial optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, 100, gamma=0.9, last_epoch=-1)
+            self.opt, 500, gamma=0.9, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])

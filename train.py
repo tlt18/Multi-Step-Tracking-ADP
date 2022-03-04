@@ -15,30 +15,37 @@ class Train():
         self.stepForward = config.stepForward
         self.batchSize = config.batchSize
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
+        self.batchDataLife = torch.zeros(self.batchSize)
         self.reset()
 
     def reset(self):
         self.batchData = self.env.reset(self.batchSize)
 
     def update(self, policy):
-        refState = self.calRefState(self.batchData)
+        refState = self.env.calRefState(self.batchData)
         control = policy(refState).detach()
-        self.batchData, _, done = self.env.model(self.batchData, control)
+        self.batchData, _, done = self.env.step(self.batchData, control)
+        self.batchDataLife += 1
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.reset(sum(done==1))
+            self.batchDataLife[done==1] = 0
+        if max(self.batchDataLife) > 40:
+            self.batchData[self.batchDataLife>40] =\
+                 self.env.reset(sum(self.batchDataLife>40))
+            self.batchDataLife[self.batchDataLife > 40] = 0
 
     def policyEvaluate(self, policy, value):
-        refState = self.calRefState(self.batchData)
+        refState = self.env.calRefState(self.batchData)
         valuePredict = value(refState)
         valueTaeget = torch.zeros(self.batchSize)
         with torch.no_grad():
             stateNext = self.batchData.clone()
             for _ in range(self.stepForward):
-                refState = self.calRefState(stateNext)
+                refState = self.env.calRefState(stateNext)
                 control = policy.forward(refState)
-                stateNext, reward, done = self.env.stepFix(stateNext, control)
+                stateNext, reward, done = self.env.step(stateNext, control)
                 valueTaeget += reward
-            refState = self.calRefState(stateNext)
+            refState = self.env.calRefState(stateNext)
             valueTaeget += value(refState)
         lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
@@ -55,18 +62,18 @@ class Train():
         stateNext = self.batchData.clone()
         valueTarget = torch.zeros(self.batchSize)
         for i in range(self.stepForward):
-            refState = self.calRefState(stateNext)
+            refState = self.env.calRefState(stateNext)
             control = policy.forward(refState)
-            stateNext, reward, done = self.env.stepFix(stateNext, control)
+            stateNext, reward, done = self.env.step(stateNext, control)
             valueTarget += reward
-        refState = self.calRefState(stateNext)
-        valueTarget += value(refState)
+        # refState = self.env.calRefState(stateNext)
+        # valueTarget += value(refState)
         for p in value.parameters():
             p.requires_grad = True
         policy.zero_grad()
         lossPolicy = valueTarget.mean()
         lossPolicy.backward()
-        torch.nn.utils.clip_grad_norm_(value.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(policy.parameters(), 10.0)
         policy.opt.step()
         policy.scheduler.step()
         self.lossIteraPolicy = np.append(
@@ -84,10 +91,8 @@ class Train():
     #     refState[:, 2:] = state[:, 2:6]
     #     return refState
 
-    def calRefState(self, state):
-        refState = torch.empty([self.batchSize, self.env.stateDim - 2])
-        refState[:, 0:2] = self.batchData[:, 6:] - self.batchData[:, 0:2]
-        refState[:, 2:] = self.batchData[:, 2:6]
-        return refState
-
-        
+    # def calRefState(self, state):
+    #     refState = torch.empty([self.batchSize, self.env.stateDim - 2])
+    #     refState[:, 0:2] = self.batchData[:, 6:] - self.batchData[:, 0:2]
+    #     refState[:, 2:] = self.batchData[:, 2:6]
+    #     return refState

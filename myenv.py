@@ -43,7 +43,7 @@ class TrackingEnv(gym.Env):
     def reset(self, batchSize):
         # 状态空间 x = [x, y, phi, u, v, omega, xr, yr]
         batchState = torch.empty([batchSize, self.stateDim])
-        batchState[:, 0] = torch.linspace(0, 30*np.pi, batchSize)  # x
+        batchState[:, 0] = torch.linspace(0, 60*np.pi, batchSize)  # x
         refy = self.referenceCurve(batchState[:, 0])
         batchState[:, 1] = torch.normal(refy, torch.abs(refy/3))  # y
         batchState[:, 2] = torch.normal(0.0, np.pi/10, (batchSize, ))  # phi
@@ -55,7 +55,7 @@ class TrackingEnv(gym.Env):
             self.referencePoint(batchState[:, 0]), -1)
         return batchState
 
-    def model(self, state, control):
+    def step(self, state, control):
         batchSize = state.size(0)
         newState = torch.empty([batchSize, self.stateDim])
         newState[:, 0:6] = \
@@ -82,8 +82,8 @@ class TrackingEnv(gym.Env):
         reward = \
             torch.pow(state[:, 0] - state[:, 6], 2) +\
             2 * torch.pow(state[:, 1] - state[:, 7], 2) +\
-            0.5 * torch.pow(control[:, 0], 2) +\
-            0.1 * torch.pow(control[:, 1], 2)
+            0.05 * torch.pow(control[:, 0], 2) +\
+            0.01 * torch.pow(control[:, 1], 2)
         return reward
 
     def isDone(self, state, control):
@@ -119,7 +119,34 @@ class TrackingEnv(gym.Env):
         refState[:, 2:] = state[:, 2:6]
         return refState
 
-    def policyTest(self, policy):
+    def policyTest(self, policy, iteration, log_dir):
+        plt.figure(iteration)
+        state = torch.empty([1, self.stateDim])
+        state[:, 0] = 0  # x
+        state[:, 1] = 0  # y
+        state[:, 2] = 0.03332  # phi
+        state[:, 3] = self.refV  # u
+        state[:, 4] = 0  # v
+        state[:, 5] = 0  # omega
+        state[:, 6:] = torch.stack(self.referencePoint(state[:, 0]), -1)
+        count = 0
+        x = torch.linspace(1,30*np.pi,1000)
+        y = self.referenceCurve(x)
+        plt.xlim(-5, 100)
+        plt.ylim(-1.1, 1.1)
+        plt.plot(x, y, color = 'gray')
+        while(count < 200):
+            refState = self.calRefState(state)
+            control = policy(refState).detach()
+            state, reward, done = self.step(state, control)
+            plt.scatter(state[:, 0], state[:, 1], color = 'red', s = 5)
+            plt.scatter(state[:, 6], state[:, 7], color = 'blue', s = 5)
+            count += 1
+        plt.title('iteration:'+str(iteration))
+        plt.savefig(log_dir + '/iteration'+str(iteration)+'.png')
+        plt.close()
+
+    def policyRender(self, policy):
         # 初始化
         state = torch.empty([1, self.stateDim])
         state[:, 0] = 0  # x
@@ -141,12 +168,12 @@ class TrackingEnv(gym.Env):
         while(count < 100):
             refState = self.calRefState(state)
             control = policy(refState).detach()
-            state, reward, done = self.model(state, control)
+            state, reward, done = self.step(state, control)
             plt.scatter(state[:, 0], state[:, 1], color = 'red', s = 5)
             plt.scatter(state[:, 6], state[:, 7], color = 'blue', s = 5)
             plt.title('x='+str(round(state[:, 0].item(),1))+\
                 ',y='+str(round(state[:, 1].item(),1))+\
-                ',reward='+str(round(reward.item(),1)))
+                ',reward='+str(round(reward.item(),2)))
             plt.pause(0.1)
             count += 1
         plt.ioff()
