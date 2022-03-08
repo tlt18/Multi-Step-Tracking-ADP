@@ -47,6 +47,7 @@ if isTrain:
                 iterarion, train.lossValue[-1], train.lossPolicy[-1]))
         if iterarion % config.iterationSave == 0:
             env.policyTest(policy, iterarion, log_dir)
+            # env.policyRender(policy)
         iterarion += 1
     env.policyTest(policy, iterarion, log_dir)
     plt.figure()

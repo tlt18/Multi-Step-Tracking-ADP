@@ -12,7 +12,8 @@ class Train():
         self.lossPolicy = []
         self.state = None
         config = trainConfig()
-        self.stepForward = config.stepForward
+        self.stepForwardPEV = config.stepForwardPEV
+        self.stepForwardPIM = config.stepForwardPIM
         self.batchSize = config.batchSize
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
         self.batchDataLife = torch.zeros(self.batchSize)
@@ -24,7 +25,7 @@ class Train():
     def update(self, policy):
         refState = self.env.calRefState(self.batchData)
         control = policy(refState).detach()
-        self.batchData, _, done = self.env.step(self.batchData, control)
+        self.batchData, _, done = self.env.stepFix(self.batchData, control)
         self.batchDataLife += 1
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.reset(sum(done==1))
@@ -40,14 +41,16 @@ class Train():
         valueTaeget = torch.zeros(self.batchSize)
         with torch.no_grad():
             stateNext = self.batchData.clone()
-            for _ in range(self.stepForward):
+            for _ in range(self.stepForwardPEV):
                 refState = self.env.calRefState(stateNext)
                 control = policy.forward(refState)
-                stateNext, reward, done = self.env.step(stateNext, control)
+                stateNext, reward, done = self.env.stepFix(stateNext, control)
                 valueTaeget += reward
             refState = self.env.calRefState(stateNext)
-            valueTaeget += value(refState)
-        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
+            valueTaeget += (~done) * value(refState)
+        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() +\
+            10 * torch.pow(value(value._zero_state),2)
+        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
         lossValue.backward()
         torch.nn.utils.clip_grad_norm_(value.parameters(), 10.0)
@@ -61,13 +64,13 @@ class Train():
             p.requires_grad = False
         stateNext = self.batchData.clone()
         valueTarget = torch.zeros(self.batchSize)
-        for i in range(self.stepForward):
+        for i in range(self.stepForwardPIM):
             refState = self.env.calRefState(stateNext)
             control = policy.forward(refState)
-            stateNext, reward, done = self.env.step(stateNext, control)
+            stateNext, reward, done = self.env.stepFix(stateNext, control)
             valueTarget += reward
-        # refState = self.env.calRefState(stateNext)
-        # valueTarget += value(refState)
+        refState = self.env.calRefState(stateNext)
+        valueTarget += (~done) * value(refState)
         for p in value.parameters():
             p.requires_grad = True
         policy.zero_grad()

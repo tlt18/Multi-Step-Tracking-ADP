@@ -5,5 +5,6 @@ class trainConfig():
         self.iterationSave = 500
         self.lrPolicy = 6e-4
         self.lrValue = 6e-3
-        self.stepForward = 3
+        self.stepForwardPEV = 5
+        self.stepForwardPIM = 3
         self.batchSize = 256
