@@ -10,41 +10,47 @@ from matplotlib.pyplot import MultipleLocator
 import matplotlib.pyplot as plt
 import time
 from math import *
-
+import config
 
 class TrackingEnv(gym.Env):
     def __init__(self):
         super().__init__()
+        config = vehicleDynamic()
         # 参考速度
-        self.refV = 20/3.6
-        self.curve = 1/10
+        self.refV = config.refV
+        self.curveK = config.curveK
+        self.curveA = config.curveA
         # 固定参考点向前看个数
-        self.refStep = 4
+        self.refStep = config.refStep
         # 车辆参数
-        # TODO: 参数是否合理？
-        self.T = 0.1  # 时间间隔
-        self.m = 1520  # 自车质量
-        self.a = 1.19  # 质心到前轴的距离
-        self.b = 1.46  # 质心到后轴的距离
-        self.kf = -155495  # 前轮总侧偏刚度
-        self.kr = -155495  # 后轮总侧偏刚度
-        self.Iz = 2642  # 转动惯量
+        self.T = config.T  # 时间间隔
+        self.m = config.m  # 自车质量
+        self.a = config.a  # 质心到前轴的距离
+        self.b = config.b  # 质心到后轴的距离
+        self.kf = config.kf  # 前轮总侧偏刚度
+        self.kr = config.kr  # 后轮总侧偏刚度
+        self.Iz = config.Iz  # 转动惯量
 
+        self.initState = config.initState
+
+        # TODO: 范围
         # 动作空间 u = [acc, delta]
         # 数值和Actor输出相关联
-        self.actionLow = torch.tensor([-4, -np.pi/9], dtype=torch.float32)
-        self.actionHigh = torch.tensor([4, np.pi/9], dtype=torch.float32)
+        self.actionLow = [-4, -np.pi/9]
+        self.actionHigh = [4, np.pi/9]
         self.actionSpace = \
-            spaces.Box(low=self.actionLow.numpy(),
-                       high=self.actionHigh.numpy(), dtype=np.float32)
+            spaces.Box(low=np.array(self.actionLow),
+                       high=np.array(actionHigh), dtype=np.float32)
 
         # 状态空间 x = [x, y, phi, u, v, omega, xr, yr]
+        self.stateLow = [-inf, -2*self.curveA, -np.pi, 0, -5*self.refV, -20]
+        self.stateHigh = [inf, 2*self.curveA, np.pi, 5*self.refV, 5*self.refV, 20]
         self.stateDim = 8
 
     def reset(self, batchSize):
         # 状态空间 x = [x, y, phi, u, v, omega, xr, yr]
         batchState = torch.empty([batchSize, self.stateDim])
-        batchState[:, 0] = torch.linspace(0, 2*np.pi/self.curve, batchSize)  # x
+        batchState[:, 0] = torch.linspace(0, 2*np.pi/self.curveK, batchSize)  # x
         refy = self.referenceCurve(batchState[:, 0])
         batchState[:, 1] = torch.normal(refy, torch.abs(refy/3))  # y
         batchState[:, 2] = torch.normal(0.0, np.pi/10, (batchSize, ))  # phi
@@ -79,7 +85,7 @@ class TrackingEnv(gym.Env):
         return newState, reward, done
 
     def calReward(self, state, control):
-        # TODO: 设计reward
+        # TODO: 设计reward，考虑变成相反数
         reward = \
             torch.pow(state[:, 0] - state[:, 6], 2) +\
             4 * torch.pow(state[:, 1] - state[:, 7], 2) +\
@@ -119,7 +125,7 @@ class TrackingEnv(gym.Env):
 
     def referenceCurve(self, x):
         # return torch.sqrt(x/(30*np.pi))
-        return torch.sin(self.curve * x)
+        return self.curveA * torch.sin(self.curveK * x)
 
     def calRefState(self, state):
         batchSize = state.size(0)
@@ -131,12 +137,7 @@ class TrackingEnv(gym.Env):
     def policyTest(self, policy, iteration, log_dir):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
-        state[:, 0] = 0  # x
-        state[:, 1] = 0  # y
-        state[:, 2] = 0.03332  # phi
-        state[:, 3] = self.refV  # u
-        state[:, 4] = 0  # v
-        state[:, 5] = 0  # omega
+        state[:, :6] = torch.tensor(self.initState)
         state[:, 6:] = torch.stack(self.referencePoint(state[:, 0]), -1)
         count = 0
         x = torch.linspace(1, 30*np.pi, 1000)
@@ -158,12 +159,7 @@ class TrackingEnv(gym.Env):
     def policyRender(self, policy):
         # 初始化
         state = torch.empty([1, self.stateDim])
-        state[:, 0] = 0  # x
-        state[:, 1] = 0  # y
-        state[:, 2] = 0.03332  # phi
-        state[:, 3] = self.refV  # u
-        state[:, 4] = 0  # v
-        state[:, 5] = 0  # omega
+        state[:, :6] = torch.tensor(self.initState)
         state[:, 6:] = torch.stack(self.referencePoint(state[:, 0]), -1)
 
         count = 0
