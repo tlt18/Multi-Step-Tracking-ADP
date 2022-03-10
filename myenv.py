@@ -32,6 +32,8 @@ class TrackingEnv(gym.Env):
         self.Iz = config.Iz  # 转动惯量
 
         self.initState = config.initState
+        self.testStep = config.testStep
+        self.rederStep = config.rederStep
 
         # TODO: 范围
         # 动作空间 u = [acc, delta]
@@ -145,7 +147,7 @@ class TrackingEnv(gym.Env):
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
-        while(count < 200):
+        while(count < self.testStep):
             refState = self.calRefState(state)
             control = policy(refState).detach()
             state, reward, done = self.step(state, control)
@@ -170,7 +172,7 @@ class TrackingEnv(gym.Env):
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
-        while(count < 100):
+        while(count < self.rederStep):
             refState = self.calRefState(state)
             control = policy(refState).detach()
             state, reward, done = self.step(state, control)

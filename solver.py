@@ -32,9 +32,7 @@ class Solver():
              state[5], refState[0], refState[1]], action)
         self.calCost = Function('calCost', [state, refstate, action], cost)
 
-    def MPCSolver(self, initState, predictStep):
-        # 计算参考点
-        refx, refy = self.env.referencePoint(initState)
+    def MPCSolver(self, initState, refState, predictStep):
         # x: 优化变量
         # g: 不等式约束
         # J: 效用函数
@@ -57,7 +55,7 @@ class Solver():
             lbx += self.actionLow
             ubx += self.actionHigh
             # 代价函数
-            J += self.calCost(Xk, [refx, refy], Uk)
+            J += self.calCost(Xk, refState, Uk)
             # 动力学约束
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
@@ -67,8 +65,8 @@ class Solver():
             ubg += [0 for _ in range(self.stateDim)]
             # 状态量加入优化变量
             x += [Xk]
-            lbx += initState
-            ubx += initState
+            lbx += self.stateLow
+            ubx += self.stateHigh
         npl = dict(f=J, g=vertcat(*G), x=vertcat(*x))
         solver = nlpsol('res', 'iport', nlp, self._sol_dic)
         res = solver(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg, x0=SX.zeros(2))

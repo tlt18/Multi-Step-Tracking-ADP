@@ -4,7 +4,13 @@ import config
 import matplotlib.pyplot as plt
 import myenv
 
-def simulation(MPCStep, simu_dir)
+def simulation(MPCStep, simu_dir):
+    # MPC
+    env = TrackingEnv()
+    for mpcstep in MPCStep:
+        initState = 
+        refState = env.
+
 
 if __name__ == '__main__':
     config = MPCConfig()

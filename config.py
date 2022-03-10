@@ -32,5 +32,10 @@ class vehicleDynamic():
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
 
+        self.testStep = 200
+        self.renderStep = 100
+
 class MPCConfig():
     MPCStep = [10]
+    self.testStep = 200
+
