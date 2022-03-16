@@ -28,7 +28,7 @@ def simulationFull(MPCStep, ADP_dir, simu_dir):
         plt.figure(mpcstep)
         state = env.initState
         count = 0
-        x = torch.linspace(1, 30*np.pi, 1000)
+        x = torch.linspace(0, 30*np.pi, 1000)
         y = env.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
@@ -64,12 +64,12 @@ def simulationOpen(MPCStep, simu_dir):
         plt.figure(mpcstep)
         state = env.initState
         count = 0
-        x = torch.linspace(1, 30*np.pi, 1000)
+        x = torch.linspace(0, 30*np.pi, 1000)
         y = env.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
-        refState = env.referencePoint(state[0]+60, MPCflag=1)
+        refState = env.referencePoint(state[0], MPCflag=1)
         _, control = solver.MPCSolver(state, refState, mpcstep)
         while(count<mpcstep):
             action = control[count].tolist()
@@ -138,17 +138,19 @@ def simulationMPC(MPCStep, simu_dir):
         print("MPCStep: {}".format(mpcstep))
         # plt.ion()
         plt.figure(mpcstep)
-        state = env.initState[0]
+        state = env.initializeState(200)
+        state = state[0].tolist()
+        state = state[:6]
         count = 0
-        x = torch.linspace(1, 30*np.pi, 1000)
+        x = torch.linspace(0, 30*np.pi, 1000)
         y = env.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
         controlMPC = np.empty((0,2))
-        refState = env.referencePoint(state[0], MPCflag=1)
-        while(count<env.testStep):
-            # refState = env.referencePoint(state[0], MPCflag=1)
+        # refState = env.referencePoint(state[0], MPCflag=1)
+        while(count < env.testStep):
+            refState = env.referencePoint(state[0], MPCflag=1)
             _, control = solver.MPCSolver(state, refState, mpcstep)
             action = control[0].tolist()
             state = env.vehicleDynamic(state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
@@ -171,15 +173,16 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
 
-    # simu_dir = "./Simulation_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M")
-    # os.makedirs(simu_dir, exist_ok=True)
-    # # 真实时域中MPC表现（参考点更新方式和ADP一致）
+    simu_dir = "./Simulation_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    os.makedirs(simu_dir, exist_ok=True)
+    # 真实时域中MPC表现（参考点更新方式和ADP一致）
     # simulationMPC(MPCStep, simu_dir)
+    simulationOpen(MPCStep, simu_dir)
 
     ## MPC单点跟踪的开环控制
     # simulationOpen(MPCStep, simu_dir)
-    ADP_dir = './Results_dir/2022-03-16-17-14-53'
-    simu_dir = ADP_dir + '/' + datetime.now().strftime("%Y-%m-%d-%H-%M")
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
-    simulationFull(MPCStep, ADP_dir, simu_dir)
+    # ADP_dir = './Results_dir/2022-03-16-17-14-53'
+    # simu_dir = ADP_dir + '/' + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
+    # simulationFull(MPCStep, ADP_dir, simu_dir)

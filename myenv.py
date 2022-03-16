@@ -145,8 +145,11 @@ class TrackingEnv(gym.Env):
         # refx = (n + self.refStep) * (self.T * self.refV)
         # return refx, self.referenceCurve(refx, MPCflag)
 
-        # 2. 定长移动参考点
-        return x + self.refStep * self.T * self.refV, self.referenceCurve(x + self.refStep * self.T * self.refV, MPCflag)
+        # # 2. 定长移动self.refStep步参考点
+        # return x + self.refStep * self.T * self.refV, self.referenceCurve(x + self.refStep * self.T * self.refV, MPCflag)
+
+        # 3. 定长移动1步参考点
+        return x + self.T * self.refV, self.referenceCurve(x + self.T * self.refV, MPCflag)
 
     def referenceCurve(self, x, MPCflag = 0):
         # return torch.sqrt(x/(30*np.pi))
@@ -168,7 +171,7 @@ class TrackingEnv(gym.Env):
         state[:, :6] = torch.tensor(self.initState)
         state[:, 6:] = torch.stack(self.referencePoint(state[:, 0]), -1)
         count = 0
-        x = torch.linspace(1, 30*np.pi, 1000)
+        x = torch.linspace(0, 30*np.pi, 1000)
         y = self.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
@@ -193,7 +196,7 @@ class TrackingEnv(gym.Env):
         count = 0
         plt.ion()
         plt.figure()
-        x = torch.linspace(1, 30*np.pi, 1000)
+        x = torch.linspace(0, 30*np.pi, 1000)
         y = self.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)

@@ -83,6 +83,8 @@ class Solver():
             ubx += self.actionHigh
             # 代价函数
             J += self.calCost(Xk, refState, Uk)
+            #########################无穷/有限时域############################
+            # refState = self.env.referencePoint(refState[0], MPCflag=1)
             # 动力学约束
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
