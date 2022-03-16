@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 from config import trainConfig
-
+import os
+import matplotlib.pyplot as plt
 
 class Train():
     def __init__(self, env):
@@ -14,6 +15,7 @@ class Train():
         config = trainConfig()
         self.stepForwardPEV = config.stepForwardPEV
         self.stepForwardPIM = config.stepForwardPIM
+        self.updFix = config.updFix
         self.batchSize = config.batchSize
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
         self.batchDataLife = torch.zeros(self.batchSize)
@@ -25,7 +27,10 @@ class Train():
     def update(self, policy):
         refState = self.env.calRefState(self.batchData)
         control = policy(refState).detach()
-        self.batchData, _, done = self.env.stepFix(self.batchData, control)
+        if self.updFix == True:
+            self.batchData, _, done = self.env.stepFix(self.batchData, control)
+        else:
+            self.batchData, _, done = self.env.step(self.batchData, control)
         self.batchDataLife += 1
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.reset(sum(done==1))
@@ -88,14 +93,18 @@ class Train():
         self.lossIteraValue = np.empty([0, 1])
         self.lossIteraPolicy = np.empty([0, 1])
 
-    # def calRefState(self, state):
-    #     refState = torch.empty([self.batchSize, self.env.stateDim - 2])
-    #     refState[:, 0:2] = state[:, 6:] - state[:, 0:2]
-    #     refState[:, 2:] = state[:, 2:6]
-    #     return refState
-
-    # def calRefState(self, state):
-    #     refState = torch.empty([self.batchSize, self.env.stateDim - 2])
-    #     refState[:, 0:2] = self.batchData[:, 6:] - self.batchData[:, 0:2]
-    #     refState[:, 2:] = self.batchData[:, 2:6]
-    #     return refState
+    def saveDate(self, log_dir):
+        np.savetxt(os.path.join(log_dir, "value_loss.csv"), self.lossValue, delimiter=',')
+        np.savetxt(os.path.join(log_dir, "policy_loss.csv"), self.lossPolicy, delimiter=',')
+        plt.figure()
+        plt.plot(range(len(self.lossValue)), self.lossValue)
+        plt.xlabel('iteration')
+        plt.ylabel('Value Loss')
+        plt.savefig(log_dir + '/value_loss.png')
+        plt.close()
+        plt.figure()
+        plt.plot(range(len(self.lossPolicy)), self.lossPolicy)
+        plt.xlabel('iteration')
+        plt.ylabel('Policy Loss')
+        plt.savefig(log_dir + '/policy_loss.png')
+        plt.close()

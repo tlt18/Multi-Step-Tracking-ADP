@@ -137,12 +137,16 @@ class TrackingEnv(gym.Env):
         return x_1, y_1, phi_1, u_1, v_1, omega_1
 
     def referencePoint(self, x, MPCflag = 0):
-        # 1. 固定参考点
-        n = math.floor(x/(self.T * self.refV))
-        refx = (n + self.refStep) * (self.T * self.refV)
-        return refx, self.referenceCurve(refx, MPCflag)
-        # 2. 自动移动参考点
-        # return x + self.T * self.refV, self.referenceCurve(x + self.T * self.refV)
+        # # 1. 固定参考点
+        # if MPCflag == 0:
+        #     n = torch.floor(x/(self.T * self.refV))
+        # else:
+        #     n = math.floor(x/(self.T * self.refV))
+        # refx = (n + self.refStep) * (self.T * self.refV)
+        # return refx, self.referenceCurve(refx, MPCflag)
+
+        # 2. 定长移动参考点
+        return x + self.refStep * self.T * self.refV, self.referenceCurve(x + self.refStep * self.T * self.refV, MPCflag)
 
     def referenceCurve(self, x, MPCflag = 0):
         # return torch.sqrt(x/(30*np.pi))
@@ -151,7 +155,6 @@ class TrackingEnv(gym.Env):
         else:
             return self.curveA * sin(self.curveK * x)
 
-        
     def calRefState(self, state):
         batchSize = state.size(0)
         refState = torch.empty([batchSize, self.stateDim - 2])
@@ -174,8 +177,8 @@ class TrackingEnv(gym.Env):
             refState = self.calRefState(state)
             control = policy(refState).detach()
             state, reward, done = self.step(state, control)
-            plt.scatter(state[:, 0], state[:, 1], color='red', s=5)
-            plt.scatter(state[:, 6], state[:, 7], color='blue', s=5)
+            plt.scatter(state[:, 0], state[:, 1], color='red', s=2)
+            plt.scatter(state[:, 6], state[:, 7], color='blue', s=2)
             count += 1
         plt.title('iteration:'+str(iteration))
         plt.savefig(log_dir + '/iteration'+str(iteration)+'.png')
@@ -208,3 +211,17 @@ class TrackingEnv(gym.Env):
             count += 1
         plt.ioff()
         
+    def initializeState(self, stateNum):
+        initialState = torch.empty([stateNum, self.stateDim])
+        initialState[:, 0] = torch.linspace(0, 2*np.pi/self.curveK, stateNum)  # x
+        initialState[:, 1] = self.referenceCurve(initialState[:, 0])  # y
+        initialState[:, 2] = torch.atan(self.curveA * self.curveK * torch.cos(self.curveK * initialState[:, 0]))
+        initialState[:, 3] = torch.ones((stateNum, )) * self.refV /2 # u
+        initialState[:, 4] = torch.zeros((stateNum, ))  # v
+        initialState[:, 5] = torch.zeros((stateNum, ))  # omega
+        initialState[:, 6:] = torch.stack(self.referencePoint(initialState[:, 0]), -1)
+        return initialState
+
+if __name__ == '__main__':
+    env = TrackingEnv()
+    env.initializeState(2)

@@ -2,10 +2,11 @@ import torch.nn as nn
 import torch
 import numpy as np
 from torch.nn import init
+import os
 PI = 3.1415926
 
 class Actor(nn.Module):
-    def __init__(self, inputSize, outputSize, lr):
+    def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
         self._out_gain = torch.tensor([4, PI/9])
         # self._norm_matrix = 1 * \
@@ -39,8 +40,11 @@ class Actor(nn.Module):
     def predict(self, x):
         return self.forward(x).detach().numpy()
 
-    def saveParameters(self, x):
-        pass
+    def saveParameters(self, logdir):
+        torch.save(self.state_dict(), os.path.join(logdir, "actor.pth"))
+
+    def loadParameters(self, load_dir):
+        self.load_state_dict(torch.load(os.path.join(load_dir, 'actor.pth')))
 
     def _initializeWeights(self):
         """
@@ -53,7 +57,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, inputSize, outputSize, lr):
+    def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
         # initial parameters of actor
         self.layers = nn.Sequential(
@@ -85,14 +89,16 @@ class Critic(nn.Module):
     def predict(self, x):
         return self.forward(state).detach().numpy()
 
-    def saveParameters(self, x):
-        pass
+    def saveParameters(self, logdir):
+        torch.save(self.state_dict(), os.path.join(logdir, "critic.pth"))
+
+    def loadParameters(self, load_dir):
+        self.load_state_dict(torch.load(os.path.join(load_dir, 'critic.pth')))
 
     def _initializeWeights(self):
         """
         initial paramete using xavier
         """
-
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 init.xavier_uniform_(m.weight)

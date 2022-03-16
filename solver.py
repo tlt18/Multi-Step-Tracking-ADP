@@ -96,11 +96,11 @@ class Solver():
             ubx += self.stateHigh
         nlp = dict(f=J, g=vertcat(*G), x=vertcat(*x))
         solver = nlpsol('res', 'ipopt', nlp, self._sol_dic)
-        print(solver)
+        # print(solver)
         res = solver(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg, x0=0.1)
         # 保存结果
         resX = np.array(res['x'])
-        print(res['x'])
+        # print(res['x'])
         resState = np.zeros([predictStep, self.stateDim], dtype='float32')
         resControl = np.zeros([predictStep, self.actionDim], dtype='float32')
         totalDim = self.stateDim + self.actionDim

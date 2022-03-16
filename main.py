@@ -8,9 +8,11 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 import time
+import shutil
 
 # mode setting
-isTrain = 1
+isTrain = True
+
 
 # parameters setting
 config = trainConfig()
@@ -23,10 +25,14 @@ env = TrackingEnv()
 env.seed(0)
 stateDim = env.stateDim - 2
 actionDim = env.actionSpace.shape[0]
-policy = Actor(stateDim, actionDim, config.lrPolicy)
-value = Critic(stateDim, 1, config.lrValue)
+policy = Actor(stateDim, actionDim, lr = config.lrPolicy)
+value = Critic(stateDim, 1, lr = config.lrValue)
 log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 os.makedirs(log_dir, exist_ok=True)
+os.makedirs(log_dir + '/train', exist_ok=True)
+
+# TODO: 测试效果
+shutil.copy('./config.py', log_dir + '/config.py')
 
 if isTrain:
     print("----------------------Start Training!----------------------")
@@ -44,20 +50,12 @@ if isTrain:
         if iterarion % config.iterationPrint == 0:
             print("iteration: {}, LossValue: {}, LossPolicy: {}".format(
                 iterarion, train.lossValue[-1], train.lossPolicy[-1]))
-        if iterarion % config.iterationSave == 0:
-            env.policyTest(policy, iterarion, log_dir)
+        if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
+            env.policyTest(policy, iterarion, log_dir+'/train')
+            value.saveParameters(log_dir)
+            policy.saveParameters(log_dir)
+            train.saveDate(log_dir+'/train')
             # env.policyRender(policy)
         iterarion += 1
-    env.policyTest(policy, iterarion, log_dir)
-    plt.figure()
-    plt.plot(range(len(train.lossValue)), train.lossValue)
-    plt.xlabel('iteration')
-    plt.ylabel('Value Loss')
-    plt.savefig(log_dir + '/value_loss.png')
-    plt.close()
-    plt.figure()
-    plt.plot(range(len(train.lossPolicy)), train.lossPolicy)
-    plt.xlabel('iteration')
-    plt.ylabel('Policy Loss')
-    plt.savefig(log_dir + '/policy_loss.png')
-    plt.close()
+
+
