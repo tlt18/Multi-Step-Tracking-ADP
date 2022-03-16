@@ -10,7 +10,7 @@ from matplotlib.pyplot import MultipleLocator
 import matplotlib.pyplot as plt
 import time
 from math import *
-import config
+from config import vehicleDynamic
 
 class TrackingEnv(gym.Env):
     def __init__(self):
@@ -33,7 +33,7 @@ class TrackingEnv(gym.Env):
 
         self.initState = config.initState
         self.testStep = config.testStep
-        self.rederStep = config.rederStep
+        self.renderStep = config.renderStep
 
         # TODO: 范围
         # 动作空间 u = [acc, delta]
@@ -42,7 +42,7 @@ class TrackingEnv(gym.Env):
         self.actionHigh = [4, np.pi/9]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
-                       high=np.array(actionHigh), dtype=np.float32)
+                       high=np.array(self.actionHigh), dtype=np.float32)
 
         # 状态空间 x = [x, y, phi, u, v, omega, xr, yr]
         self.stateLow = [-inf, -2*self.curveA, -np.pi, 0, -5*self.refV, -20]
@@ -86,13 +86,20 @@ class TrackingEnv(gym.Env):
         done = self.isDone(newState, control)  # 考虑一下用state还是newState
         return newState, reward, done
 
-    def calReward(self, state, control):
+    def calReward(self, state, control, MPCflag = 0):
         # TODO: 设计reward，考虑变成相反数
-        reward = \
-            torch.pow(state[:, 0] - state[:, 6], 2) +\
-            4 * torch.pow(state[:, 1] - state[:, 7], 2) +\
-            0.05 * torch.pow(control[:, 0], 2) +\
-            0.01 * torch.pow(control[:, 1], 2)
+        if MPCflag == 0 :
+            reward = \
+                torch.pow(state[:, 0] - state[:, 6], 2) +\
+                4 * torch.pow(state[:, 1] - state[:, 7], 2) +\
+                0.05 * torch.pow(control[:, 0], 2) +\
+                0.01 * torch.pow(control[:, 1], 2)
+        else:
+            reward = \
+                pow(state[0] - state[6], 2) +\
+                4 * pow(state[1] - state[7], 2) +\
+                0.05 * pow(control[0], 2) +\
+                0.01 * pow(control[1], 2)
         return reward
 
     def isDone(self, state, control):
@@ -104,31 +111,47 @@ class TrackingEnv(gym.Env):
         done[(state[:, 0] - state[:, 6] > 0 )] = True
         return done
 
-    def vehicleDynamic(self, x_0, y_0, phi_0, u_0, v_0, omega_0, acc, delta):
-        x_1 = x_0 + self.T * (u_0 * torch.cos(phi_0) - v_0 * torch.sin(phi_0))
-        y_1 = y_0 + self.T * (v_0 * torch.cos(phi_0) + u_0 * torch.sin(phi_0))
-        phi_1 = phi_0 + self.T * omega_0
-        u_1 = u_0 + self.T * acc
-        v_1 = (-(self.a * self.kf - self.b * self.kr) * omega_0 + self.kf * delta * u_0 +
-               self.m * omega_0 * u_0 * u_0 - self.m * u_0 * v_0 / self.T) \
-            / (self.kf + self.kr - self.m * u_0 / self.T)
-        omega_1 = (-self.Iz * omega_0 * u_0 / self.T - (self.a * self.kf - self.b * self.kr) * v_0
-                   + self.a * self.kf * delta * u_0) \
-            / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
+    def vehicleDynamic(self, x_0, y_0, phi_0, u_0, v_0, omega_0, acc, delta, MPCflag = 0):
+        if MPCflag == 0:
+            x_1 = x_0 + self.T * (u_0 * torch.cos(phi_0) - v_0 * torch.sin(phi_0))
+            y_1 = y_0 + self.T * (v_0 * torch.cos(phi_0) + u_0 * torch.sin(phi_0))
+            phi_1 = phi_0 + self.T * omega_0
+            u_1 = u_0 + self.T * acc
+            v_1 = (-(self.a * self.kf - self.b * self.kr) * omega_0 + self.kf * delta * u_0 +
+                self.m * omega_0 * u_0 * u_0 - self.m * u_0 * v_0 / self.T) \
+                / (self.kf + self.kr - self.m * u_0 / self.T)
+            omega_1 = (-self.Iz * omega_0 * u_0 / self.T - (self.a * self.kf - self.b * self.kr) * v_0
+                    + self.a * self.kf * delta * u_0) \
+                / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
+        else:
+            x_1 = x_0 + self.T * (u_0 * cos(phi_0) - v_0 * sin(phi_0))
+            y_1 = y_0 + self.T * (v_0 * cos(phi_0) + u_0 * sin(phi_0))
+            phi_1 = phi_0 + self.T * omega_0
+            u_1 = u_0 + self.T * acc
+            v_1 = (-(self.a * self.kf - self.b * self.kr) * omega_0 + self.kf * delta * u_0 +
+                self.m * omega_0 * u_0 * u_0 - self.m * u_0 * v_0 / self.T) \
+                / (self.kf + self.kr - self.m * u_0 / self.T)
+            omega_1 = (-self.Iz * omega_0 * u_0 / self.T - (self.a * self.kf - self.b * self.kr) * v_0
+                    + self.a * self.kf * delta * u_0) \
+                / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
         return x_1, y_1, phi_1, u_1, v_1, omega_1
 
-    def referencePoint(self, x):
+    def referencePoint(self, x, MPCflag = 0):
         # 1. 固定参考点
-        n = (x/(self.T * self.refV)).floor()
+        n = math.floor(x/(self.T * self.refV))
         refx = (n + self.refStep) * (self.T * self.refV)
-        return refx, self.referenceCurve(refx)
+        return refx, self.referenceCurve(refx, MPCflag)
         # 2. 自动移动参考点
         # return x + self.T * self.refV, self.referenceCurve(x + self.T * self.refV)
 
-    def referenceCurve(self, x):
+    def referenceCurve(self, x, MPCflag = 0):
         # return torch.sqrt(x/(30*np.pi))
-        return self.curveA * torch.sin(self.curveK * x)
+        if MPCflag == 0:
+            return self.curveA * torch.sin(self.curveK * x)
+        else:
+            return self.curveA * sin(self.curveK * x)
 
+        
     def calRefState(self, state):
         batchSize = state.size(0)
         refState = torch.empty([batchSize, self.stateDim - 2])
@@ -172,7 +195,7 @@ class TrackingEnv(gym.Env):
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
-        while(count < self.rederStep):
+        while(count < self.renderStep):
             refState = self.calRefState(state)
             control = policy(refState).detach()
             state, reward, done = self.step(state, control)

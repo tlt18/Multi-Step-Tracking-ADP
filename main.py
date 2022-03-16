@@ -23,7 +23,6 @@ env = TrackingEnv()
 env.seed(0)
 stateDim = env.stateDim - 2
 actionDim = env.actionSpace.shape[0]
-actionSpace = env.actionSpace
 policy = Actor(stateDim, actionDim, config.lrPolicy)
 value = Critic(stateDim, 1, config.lrValue)
 log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")

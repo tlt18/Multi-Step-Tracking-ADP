@@ -36,6 +36,7 @@ class vehicleDynamic():
         self.renderStep = 100
 
 class MPCConfig():
-    MPCStep = [10]
-    self.testStep = 200
+    def __init__(self):
+        self.MPCStep = [5, 10, 20, 30, 50, 100]
+        # self.MPCStep = [100]
 
