@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import time
 from math import *
 from config import vehicleDynamic
+import os
 
 class TrackingEnv(gym.Env):
     def __init__(self):
@@ -146,10 +147,10 @@ class TrackingEnv(gym.Env):
         # return refx, self.referenceCurve(refx, MPCflag)
 
         # # 2. 定长移动self.refStep步参考点
-        # return x + self.refStep * self.T * self.refV, self.referenceCurve(x + self.refStep * self.T * self.refV, MPCflag)
+        return x + self.refStep * self.T * self.refV, self.referenceCurve(x + self.refStep * self.T * self.refV, MPCflag)
 
         # 3. 定长移动1步参考点
-        return x + self.T * self.refV, self.referenceCurve(x + self.T * self.refV, MPCflag)
+        # return x + self.T * self.refV, self.referenceCurve(x + self.T * self.refV, MPCflag)
 
     def referenceCurve(self, x, MPCflag = 0):
         # return torch.sqrt(x/(30*np.pi))
@@ -176,9 +177,15 @@ class TrackingEnv(gym.Env):
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
+        plt.scatter(state[:, 0], state[:, 1], color='red', s=2)
+        plt.scatter(state[:, 6], state[:, 7], color='blue', s=2)
+        stateADP = np.empty(0)
+        controlADP = np.empty(0)
         while(count < self.testStep):
             refState = self.calRefState(state)
             control = policy(refState).detach()
+            stateADP = np.append(stateADP, state[0].numpy())
+            controlADP = np.append(controlADP, control[0].numpy())
             state, reward, done = self.step(state, control)
             plt.scatter(state[:, 0], state[:, 1], color='red', s=2)
             plt.scatter(state[:, 6], state[:, 7], color='blue', s=2)
@@ -186,6 +193,10 @@ class TrackingEnv(gym.Env):
         plt.title('iteration:'+str(iteration))
         plt.savefig(log_dir + '/iteration'+str(iteration)+'.png')
         plt.close()
+        stateADP = np.reshape(stateADP, (-1, self.stateDim))
+        np.savetxt(os.path.join(log_dir, "stateFullADP"+str(iteration)+".csv"), stateADP, delimiter=',')
+        controlADP = np.reshape(stateADP, (-1, 2))
+        np.savetxt(os.path.join(log_dir, "controlFullADP"+str(iteration)+".csv"), controlADP, delimiter=',')
 
     def policyRender(self, policy):
         # 初始化
