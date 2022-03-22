@@ -23,7 +23,7 @@ torch.manual_seed(0)
 
 env = TrackingEnv()
 env.seed(0)
-stateDim = env.stateDim - 2
+stateDim = env.stateDim - 3
 actionDim = env.actionSpace.shape[0]
 policy = Actor(stateDim, actionDim, lr = config.lrPolicy)
 value = Critic(stateDim, 1, lr = config.lrValue)

@@ -28,17 +28,18 @@ class Train():
         refState = self.env.calRefState(self.batchData)
         control = policy(refState).detach()
         if self.updFix == True:
-            self.batchData, _, done = self.env.stepFix(self.batchData, control)
+            self.batchData, _, done = self.env.stepVirtual(self.batchData, control)
         else:
-            self.batchData, _, done = self.env.step(self.batchData, control)
+            self.batchData, _, done = self.env.stepReal(self.batchData, control)
         self.batchDataLife += 1
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.reset(sum(done==1))
             self.batchDataLife[done==1] = 0
-        if max(self.batchDataLife) > 40:
-            self.batchData[self.batchDataLife>40] =\
-                 self.env.reset(sum(self.batchDataLife>40))
-            self.batchDataLife[self.batchDataLife > 40] = 0
+        lifeMax = 5
+        if max(self.batchDataLife) > lifeMax:
+            self.batchData[self.batchDataLife > lifeMax] =\
+                 self.env.reset(sum(self.batchDataLife > lifeMax))
+            self.batchDataLife[self.batchDataLife > lifeMax] = 0
 
     def policyEvaluate(self, policy, value):
         refState = self.env.calRefState(self.batchData)
@@ -49,7 +50,7 @@ class Train():
             for _ in range(self.stepForwardPEV):
                 refState = self.env.calRefState(stateNext)
                 control = policy.forward(refState)
-                stateNext, reward, done = self.env.stepFix(stateNext, control)
+                stateNext, reward, done = self.env.stepVirtual(stateNext, control)
                 valueTaeget += reward
             refState = self.env.calRefState(stateNext)
             valueTaeget += (~done) * value(refState)
@@ -72,10 +73,10 @@ class Train():
         for i in range(self.stepForwardPIM):
             refState = self.env.calRefState(stateNext)
             control = policy.forward(refState)
-            stateNext, reward, done = self.env.stepFix(stateNext, control)
+            stateNext, reward, done = self.env.stepVirtual(stateNext, control)
             valueTarget += reward
         refState = self.env.calRefState(stateNext)
-        valueTarget += (~done) * value(refState)
+        # valueTarget += (~done) * value(refState)
         for p in value.parameters():
             p.requires_grad = True
         policy.zero_grad()
