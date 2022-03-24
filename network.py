@@ -79,7 +79,7 @@ class Critic(nn.Module):
             self.opt, 500, gamma=0.9, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
-        self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self._zero_state = torch.zeros(inputSize)
 
     def forward(self, x):
         x = torch.mul(x, self._norm_matrix)

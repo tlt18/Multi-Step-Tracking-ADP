@@ -9,7 +9,7 @@ class trainConfig():
         self.lrValue = 6e-3
         self.stepForwardPEV = 5
         self.stepForwardPIM = 4
-        self.gammar = 0.8
+        self.gammar = 0.1
         self.batchSize = 256
         self.updFix = True
 
@@ -36,6 +36,7 @@ class vehicleDynamic():
 
         self.testStep = 200
         self.renderStep = 100
+        self.refNum = 1
 
 class MPCConfig():
     def __init__(self):
