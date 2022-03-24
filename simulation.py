@@ -112,9 +112,8 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
     value.loadParameters(ADP_dir)
     solver = Solver()
     initialState = env.initializeState(stateNum)
-    refState = env.calRefState(initialState)
     timeStart = time.time()
-    controlADP = policy(refState).detach()
+    controlADP = policy(initialState).detach()
     timeADP = (time.time() - timeStart)
     controlADP = controlADP.numpy()
     np.savetxt(os.path.join(simu_dir, "controlOneStepADP.csv"),

@@ -17,6 +17,7 @@ class Train():
         self.stepForwardPIM = config.stepForwardPIM
         self.updFix = config.updFix
         self.batchSize = config.batchSize
+        self.gammar = config.gammar
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
         self.batchDataLife = torch.zeros(self.batchSize)
         self.reset()
@@ -25,8 +26,7 @@ class Train():
         self.batchData = self.env.reset(self.batchSize)
 
     def update(self, policy):
-        refState = self.env.calRefState(self.batchData)
-        control = policy(refState).detach()
+        control = policy(self.batchData).detach()
         if self.updFix == True:
             self.batchData, _, done = self.env.stepVirtual(self.batchData, control)
         else:
@@ -42,20 +42,19 @@ class Train():
             self.batchDataLife[self.batchDataLife > lifeMax] = 0
 
     def policyEvaluate(self, policy, value):
-        refState = self.env.calRefState(self.batchData)
-        valuePredict = value(refState)
+        valuePredict = value(self.batchData)
         valueTaeget = torch.zeros(self.batchSize)
         with torch.no_grad():
             stateNext = self.batchData.clone()
+            gammar = 1
             for _ in range(self.stepForwardPEV):
-                refState = self.env.calRefState(stateNext)
-                control = policy.forward(refState)
+                control = policy.forward(stateNext)
                 stateNext, reward, done = self.env.stepVirtual(stateNext, control)
-                valueTaeget += reward
-            refState = self.env.calRefState(stateNext)
-            valueTaeget += (~done) * value(refState)
-        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() +\
-            10 * torch.pow(value(value._zero_state),2)
+                valueTaeget += reward * gammar
+                gammar *= self.gammar
+            valueTaeget += (~done) * value(stateNext)
+        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() 
+            # + 10 * torch.pow(value(value._zero_state),2) # 不能加这一项，因为没有平衡点的概念
         # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
         lossValue.backward()
@@ -70,13 +69,13 @@ class Train():
             p.requires_grad = False
         stateNext = self.batchData.clone()
         valueTarget = torch.zeros(self.batchSize)
+        gammar = 1
         for i in range(self.stepForwardPIM):
-            refState = self.env.calRefState(stateNext)
-            control = policy.forward(refState)
+            control = policy.forward(stateNext)
             stateNext, reward, done = self.env.stepVirtual(stateNext, control)
-            valueTarget += reward
-        refState = self.env.calRefState(stateNext)
-        # valueTarget += (~done) * value(refState)
+            valueTarget += reward * gammar
+            gammar *= self.gammar
+        # valueTarget += (~done) * value(stateNext)
         for p in value.parameters():
             p.requires_grad = True
         policy.zero_grad()

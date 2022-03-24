@@ -162,14 +162,6 @@ class TrackingEnv(gym.Env):
         else:
             return self.curveA * sin(self.curveK * x), atan(self.curveA * self.curveK * cos(self.curveK * x))
 
-    def calRefState(self, state):
-        # TODO: 统一车头朝向
-        batchSize = state.size(0)
-        refState = torch.empty([batchSize, self.stateDim - 3])
-        refState[:, 0:2] = state[:, 6:8] - state[:, 0:2]
-        refState[:, 2:] = state[:, 2:6]
-        return refState
-
     def policyTest(self, policy, iteration, log_dir):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
@@ -186,8 +178,7 @@ class TrackingEnv(gym.Env):
         stateADP = np.empty(0)
         controlADP = np.empty(0)
         while(count < self.testStep):
-            refState = self.calRefState(state)
-            control = policy(refState).detach()
+            control = policy(state).detach()
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
             state, reward, done = self.stepReal(state, control)
@@ -217,8 +208,7 @@ class TrackingEnv(gym.Env):
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
         while(count < self.renderStep):
-            refState = self.calRefState(state)
-            control = policy(refState).detach()
+            control = policy(state).detach()
             state, reward, done = self.step(state, control)
             plt.scatter(state[:, 0], state[:, 1], color='red', s=5)
             plt.scatter(state[:, 6], state[:, 7], color='blue', s=5)
