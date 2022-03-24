@@ -9,9 +9,9 @@ class trainConfig():
         self.lrValue = 6e-3
         self.stepForwardPEV = 5
         self.stepForwardPIM = 4
-        self.gammar = 0.1
+        self.gammar = 0.8
         self.batchSize = 256
-        self.updFix = True
+        self.updVirtual = True
 
 class vehicleDynamic():
     def __init__(self):

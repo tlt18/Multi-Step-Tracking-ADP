@@ -25,8 +25,8 @@ env = TrackingEnv()
 env.seed(0)
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
-policy = Actor(stateDim, actionDim, lr = config.lrPolicy)
-value = Critic(stateDim, 1, lr = config.lrValue)
+policy = Actor(relstateDim, actionDim, lr = config.lrPolicy)
+value = Critic(relstateDim, 1, lr = config.lrValue)
 log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(log_dir + '/train', exist_ok=True)

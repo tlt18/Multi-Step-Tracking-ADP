@@ -1,17 +1,21 @@
-import torch
 import math
-import numpy as np
+import os
+import time
+from math import *
+
 import gym
+import matplotlib.patches as mpaches
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from gym import spaces
 from gym.utils import seeding
 from matplotlib import pyplot as plt
-import matplotlib.patches as mpaches
 from matplotlib.pyplot import MultipleLocator
-import matplotlib.pyplot as plt
-import time
-from math import *
+
 from config import vehicleDynamic
-import os
+from network import Actor, Critic
+
 
 class TrackingEnv(gym.Env):
     def __init__(self):
@@ -50,8 +54,9 @@ class TrackingEnv(gym.Env):
         # TODO:横摆角速度的范围
         self.stateLow = [0, -5*self.refV, -20, -inf, -5*self.curveA, -np.pi]
         self.stateHigh = [5*self.refV, 5*self.refV, 20, inf, 5*self.curveA, np.pi]
-        self.stateDim = 6 + 3 * config.refNum # 增广状态维度
-        self.relstateDim = 3 + 3 * config.refNum # 相对状态维度
+        self.refNum = config.refNum
+        self.stateDim = 6 + 3 * self.refNum # 增广状态维度
+        self.relstateDim = 3 + 3 * self.refNum # 相对状态维度
 
     def reset(self, batchSize):
         # 状态空间 x = [u, v, omega, [xr, yr, phir], x, y, phi]
@@ -63,7 +68,7 @@ class TrackingEnv(gym.Env):
         refy, refphi = self.referenceCurve(batchState[:, -3])
         batchState[:, -2] = torch.normal(refy, torch.abs(refy/4))  # y
         batchState[:, -1] = torch.normal(refphi, torch.abs(refphi/4))  # phi
-        batchState[:, 3:-3] = torch.stack(self.referencePoint(batchState[:, -3]), -1) # 通过x生成参考点
+        batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3]), -1) # 通过x生成参考点
         return batchState
 
     def stepReal(self, state, control):
@@ -75,7 +80,7 @@ class TrackingEnv(gym.Env):
                                             state[:, 1], state[:, 2], control[:, 0], control[:, 1]), -1)
         newState[:, -3:] = temp[:, :3]
         newState[:, :3] = temp[:, 3:]
-        newState[:, 3:-3] = torch.stack(self.referencePoint(state[:, 3]), -1)
+        newState[:, 3:-3] = torch.stack(self.referenceFind(state[:, 3]), -1)
         reward = self.calReward(state, control)  # 使用当前状态计算
         done = self.isDone(newState, control)  # 考虑一下用state还是newState
         return newState, reward, done
@@ -150,7 +155,7 @@ class TrackingEnv(gym.Env):
             refNextphi = refstate[:, 2]
         return refNextx, refNexty, refNextphi
 
-    def referencePoint(self, x, MPCflag = 0):
+    def referenceFind(self, x, MPCflag = 0):
         # input: 初始时刻的x坐标（用于第一次生成参考点），或者参考点的x坐标（用于真实时域中参考点递推）
         # output: 后续N个参考点
         if MPCflag == 0:
@@ -167,12 +172,19 @@ class TrackingEnv(gym.Env):
         else:
             return self.curveA * sin(self.curveK * x), atan(self.curveA * self.curveK * cos(self.curveK * x))
 
+    def relStateCal(self, state):
+        batchSize = state.size(0)
+        relState = torch.empty([batchSize, self.relstateDim])
+        relState[:, :3] = state[:, :3]
+        relState[:, 3:] = state[:, 3:-3] - state[:, -3:].repeat(1, self.refNum)
+        return relState
+
     def policyTest(self, policy, iteration, log_dir):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
         state[:, :3] = torch.tensor(self.initState)[3:]
         state[:, -3:] = torch.tensor(self.initState)[:3]
-        state[:, 3:-3] = torch.stack(self.referencePoint(state[:, 0]), -1)
+        state[:, 3:-3] = torch.stack(self.referenceFind(state[:, -3]), -1)
         count = 0
         x = torch.linspace(0, 30*np.pi, 1000)
         y, _ = self.referenceCurve(x)
@@ -184,7 +196,8 @@ class TrackingEnv(gym.Env):
         stateADP = np.empty(0)
         controlADP = np.empty(0)
         while(count < self.testStep):
-            control = policy(state).detach()
+            refState = self.relStateCal(state)
+            control = policy(refState).detach()
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
             state, reward, done = self.stepReal(state, control)
@@ -204,7 +217,7 @@ class TrackingEnv(gym.Env):
         state = torch.empty([1, self.stateDim])
         state[:, :3] = torch.tensor(self.initState)[3:]
         state[:, -3:] = torch.tensor(self.initState)[:3]
-        state[:, 3:-3] = torch.stack(self.referencePoint(state[:, 0]), -1)
+        state[:, 3:-3] = torch.stack(self.referenceFind(state[:, -3]), -1)
         count = 0
         plt.ion()
         plt.figure()
@@ -214,8 +227,9 @@ class TrackingEnv(gym.Env):
         plt.ylim(-1.1, 1.1)
         plt.plot(x, y, color='gray')
         while(count < self.renderStep):
-            control = policy(state).detach()
-            state, reward, done = self.step(state, control)
+            refState = self.relStateCal(state)
+            control = policy(refState).detach()
+            state, reward, done = self.stepReal(state, control)
             plt.scatter(state[:, -3], state[:, -2], color='red', s=5)
             plt.scatter(state[:, 3], state[:, 4], color='blue', s=5)
             plt.title('x='+str(round(state[:, -3].item(), 1)) +
@@ -235,9 +249,13 @@ class TrackingEnv(gym.Env):
         refy, refphi = self.referenceCurve(initialState[:, -3])
         initialState[:, -2] = refy  # y
         initialState[:, -1] = refphi
-        initialState[:, 3:-3] = torch.stack(self.referencePoint(initialState[:, -3]), -1)
+        initialState[:, 3:-3] = torch.stack(self.referenceFind(initialState[:, -3]), -1)
         return initialState
 
 if __name__ == '__main__':
+    ADP_dir = './Results_dir/2022-03-24-23-11-27'
     env = TrackingEnv()
-    env.initializeState(2)
+    policy = Actor(env.relstateDim, env.actionSpace.shape[0])
+    policy.loadParameters(ADP_dir)
+    env.policyRender(policy)
+
