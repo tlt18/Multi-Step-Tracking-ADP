@@ -145,15 +145,19 @@ class TrackingEnv(gym.Env):
             omega_1 = (-self.Iz * omega_0 * u_0 / self.T - (self.a * self.kf - self.b * self.kr) * v_0
                     + self.a * self.kf * delta * u_0) \
                 / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
-        return x_1, y_1, phi_1, u_1, v_1, omega_1
+        return [x_1, y_1, phi_1, u_1, v_1, omega_1]
 
-    def refdynamicvirtual(self, refstate, MPCflag = 0):
+    def refdynamicvirtual(self, refState, MPCflag = 0):
         # 注意这里的输出输入都是N个参考点
         if MPCflag == 0:
-            refNextx = refstate[:, 0] + self.refV * self.T * torch.cos(refstate[:, 2])
-            refNexty = refstate[:, 1] + self.refV * self.T * torch.sin(refstate[:, 2])
-            refNextphi = refstate[:, 2]
-        return refNextx, refNexty, refNextphi
+            refNextx = refState[:, 0] + self.refV * self.T * torch.cos(refState[:, 2])
+            refNexty = refState[:, 1] + self.refV * self.T * torch.sin(refState[:, 2])
+            refNextphi = refState[:, 2]
+        else:
+            refNextx = refState[0] + self.refV * self.T * cos(refState[2])
+            refNexty = refState[1] + self.refV * self.T * sin(refState[2])
+            refNextphi = refState[2]
+        return [refNextx, refNexty, refNextphi]
 
     def referenceFind(self, x, MPCflag = 0):
         # input: 初始时刻的x坐标（用于第一次生成参考点），或者参考点的x坐标（用于真实时域中参考点递推）
@@ -164,7 +168,7 @@ class TrackingEnv(gym.Env):
             n = math.floor(x/(self.T * self.refV)) + 1
         refx = self.T * self.refV * n
         refy, refphi = self.referenceCurve(refx, MPCflag)
-        return refx, refy, refphi
+        return [refx, refy, refphi]
 
     def referenceCurve(self, x, MPCflag = 0):
         if MPCflag == 0:
@@ -247,9 +251,10 @@ class TrackingEnv(gym.Env):
         
     def initializeState(self, stateNum):
         initialState = torch.empty([stateNum, self.stateDim])
-        initialState[:, 0] = torch.ones((stateNum, )) * self.refV /2 # u 纵向
+        initialState[:, 0] = torch.ones((stateNum, )) * self.refV  # u 纵向
         initialState[:, 1] = torch.zeros((stateNum, ))  # v 横向
         initialState[:, 2] = torch.zeros((stateNum, ))  # omega
+        # x初始化可以线性也可以随机
         initialState[:, -3] = torch.linspace(0, 2*np.pi/self.curveK, stateNum)  # x
         # initialState[:, -3] = torch.rand(stateNum) * 2 * np.pi / self.curveK # x
         refy, refphi = self.referenceCurve(initialState[:, -3])

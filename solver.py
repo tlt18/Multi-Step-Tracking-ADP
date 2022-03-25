@@ -10,12 +10,14 @@ class Solver():
         self._sol_dic = {'ipopt.print_level': 0,
                          'ipopt.sb': 'yes', 'print_time': 0}
         self.env = TrackingEnv()
-        self.stateLow = self.env.stateLow
-        self.stateHigh = self.env.stateHigh
+        self.stateLow = self.env.stateLow[3:] + self.env.stateLow[:3]
+        self.stateHigh = self.env.stateHigh[3:] + self.env.stateHigh[:3]
         self.actionLow = self.env.actionLow
         self.actionHigh = self.env.actionHigh
         self.actionDim = self.env.actionSpace.shape[0]
-        self.stateDim = self.env.stateDim - 2
+        self.stateDim = 6
+        config = MPCConfig()
+        self.gammar = config.gammar
         self.T = self.env.T
         state = SX.sym('state', self.stateDim)
         action = SX.sym('action', self.actionDim)
@@ -45,21 +47,16 @@ class Solver():
                     + self.a * self.kf * action[1] * state[3]) \
                 / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * state[3] / self.T)
         )
-        # 
         self.F = Function("F", [state, action], [stateNextt])
-        refState = SX.sym('refState', 2)
-        # cost = self.env.calReward(
-        #     [state[0], state[1], state[2], state[3], state[4],
-        #      state[5], refState[0], refState[1]], action, MPCflag=1)
-        # 替换reward
+
+        refState = SX.sym('refState',3)
         cost = pow(state[0] - refState[0], 2) +\
             4 * pow(state[1] - refState[1], 2) +\
             0.05 * pow(action[0], 2) +\
             0.01 * pow(action[1], 2)
-        # 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
-    def MPCSolver(self, initState, refState, predictStep):
+    def MPCSolver(self, initState, refState, predictStep, isReal = True):
         # x: 优化变量
         # g: 不等式约束
         # J: 效用函数
@@ -74,6 +71,7 @@ class Solver():
         x += [Xk]
         lbx += initState
         ubx += initState
+        gammar = 1
         for k in range(1, predictStep + 1):
             Uname = 'U' + str(k-1)
             Uk = SX.sym(Uname, self.actionDim)
@@ -82,9 +80,13 @@ class Solver():
             lbx += self.actionLow
             ubx += self.actionHigh
             # 代价函数
-            J += self.calCost(Xk, refState, Uk)
-            #########################无穷/有限时域############################
-            # refState = self.env.referencePoint(refState[0], MPCflag=1)
+            J += self.calCost(Xk, refState, Uk) * gammar
+            gammar *= self.gammar
+            #########################真实/虚拟参考点更新############################
+            if isReal==True:
+                refState = self.env.referenceFind(refState[0], MPCflag=1)[:3]
+            else:
+                refState = self.env.refdynamicvirtual(refState, MPCflag=1)[:3]
             # 动力学约束
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
