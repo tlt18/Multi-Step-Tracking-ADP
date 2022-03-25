@@ -180,8 +180,8 @@ class TrackingEnv(gym.Env):
         for i in range(self.refNum):
             relIndex = 3 * (i + 1)
             tempIndex = 3 * i
-            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[-1]) + tempState[:, tempIndex+1] * torch.sin(state[-1])
-            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[-1])) + tempState[:, tempIndex+1] *  torch.cos(state[-1])
+            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[:, -1]) + tempState[:, tempIndex+1] * torch.sin(state[:, -1])
+            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[:, -1])) + tempState[:, tempIndex+1] *  torch.cos(state[:, -1])
             relState[:, relIndex + 2] = tempState[:, tempIndex + 2]
         return relState
 
