@@ -176,7 +176,13 @@ class TrackingEnv(gym.Env):
         batchSize = state.size(0)
         relState = torch.empty([batchSize, self.relstateDim])
         relState[:, :3] = state[:, :3]
-        relState[:, 3:] = state[:, 3:-3] - state[:, -3:].repeat(1, self.refNum)
+        tempState = state[:, 3:-3] - state[:, -3:].repeat(1, self.refNum) # 状态差
+        for i in range(self.refNum):
+            relIndex = 3 * (i + 1)
+            tempIndex = 3 * i
+            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[-1]) + tempState[:, tempIndex+1] * torch.sin(state[-1])
+            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[-1])) + tempState[:, tempIndex+1] *  torch.cos(state[-1])
+            relState[:, relIndex + 2] = tempState[:, tempIndex + 2]
         return relState
 
     def policyTest(self, policy, iteration, log_dir):
