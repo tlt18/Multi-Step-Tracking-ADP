@@ -12,60 +12,6 @@ from myenv import TrackingEnv
 from network import Actor, Critic
 from solver import Solver
 
-
-def simulationFull(MPCStep, ADP_dir, simu_dir):
-    # MPC
-    env = TrackingEnv()
-    env.seed(0)
-    stateDim = env.stateDim - 2
-    actionDim = env.actionSpace.shape[0]
-    policy = Actor(stateDim, actionDim)
-    policy.loadParameters(ADP_dir)
-    value = Critic(stateDim, 1)
-    value.loadParameters(ADP_dir)
-    solver = Solver()
-    env.policyTest(policy, -1, simu_dir)
-    for mpcstep in MPCStep:
-        print("----------------------Start Solving!----------------------")
-        print("MPCStep: {}".format(mpcstep))
-        # plt.ion()
-        plt.figure(mpcstep)
-        state = env.initState
-        count = 0
-        x = torch.linspace(0, 30*np.pi, 1000)
-        y = env.referenceCurve(x)
-        plt.xlim(-5, 100)
-        plt.ylim(-1.1, 1.1)
-        plt.plot(x, y, color='gray')
-        controlMPC = np.empty(0)
-        stateMPC = np.empty(0)
-        while(count < env.testStep):
-            refState = env.referencePoint(state[0], MPCflag=1)
-            _, control = solver.MPCSolver(state, refState, mpcstep)
-            stateMPC = np.append(stateMPC, np.arry(state))
-            stateMPC = np.append(stateMPC, np.array(refState))
-            action = control[0].tolist()
-            state = env.vehicleDynamic(
-                state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
-            plt.scatter(state[0], state[1], color='red', s=2)
-            plt.scatter(refState[0], refState[1], color='blue', s=2)
-            controlMPC = np.append(controlMPC, control[0])
-            # plt.pause(0.05)
-            count += 1
-            if count % 10 == 0:
-                print('count/totalStep: {}/{}'.format(count, env.testStep))
-        plt.title('MPCStep:'+str(mpcstep))
-        plt.savefig(simu_dir + '/FullMPCStep'+str(mpcstep)+'.png')
-        # plt.ioff()
-        plt.close()
-        controlMPC = np.reshape(controlMPC, (-1, actionDim))
-        np.savetxt(os.path.join(simu_dir, "controlFullMPC" +
-                   str(mpcstep)+".csv"), controlMPC, delimiter=',')
-        stateMPC = np.reshape(stateMPC, (-1, stateDim + 2))
-        np.savetxt(os.path.join(simu_dir, "stateFullMPC" +
-                   str(mpcstep)+".csv"), stateMPC, delimiter=',')
-
-
 def simulationMPC(MPCStep, simu_dir):
     # 测试MPC跟踪性能
     env = TrackingEnv()
@@ -150,169 +96,145 @@ def simulationOpen(MPCStep, simu_dir):
         plt.close()
         
 def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
-    # MPC
+    # 单步ADP、MPC测试
     env = TrackingEnv()
     env.seed(0)
-    stateDim = env.stateDim - 2
+    relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
-    policy = Actor(stateDim, actionDim)
+    policy = Actor(relstateDim, actionDim)
     policy.loadParameters(ADP_dir)
-    value = Critic(stateDim, 1)
+    value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
     solver = Solver()
-    initialState = env.initializeState(stateNum)
+    initialState = env.initializeState(stateNum) # [u,v,omega,[xr,yr,phir],x,y,phi]
     timeStart = time.time()
-    controlADP = policy(initialState).detach()
+    relState = env.relStateCal(initialState)
+    controlADP = policy(relState).detach()
     timeADP = (time.time() - timeStart)
     controlADP = controlADP.numpy()
-    np.savetxt(os.path.join(simu_dir, "controlOneStepADP.csv"),
-               controlADP, delimiter=',')
     print("ADP consumes {:.3f}s {} step".format(timeADP, stateNum))
     for mpcstep in MPCStep:
         timeMPC = 0
-        controlMPC = np.empty((0, 2))
-        # plt.ion()
-        # plt.figure()
-        # x = torch.linspace(0, 30*np.pi, 1000)
-        # y = env.referenceCurve(x)
-        # plt.xlim(-5, 100)
-        # plt.ylim(-1.1, 1.1)
-        # plt.plot(x, y, color='gray')
-        print("----------------------Start Solving MPC" +
-              str(mpcstep)+"!----------------------")
+        controlMPC = np.empty(0)
+        print("----------------------Start Solving MPC" +str(mpcstep)+"!----------------------")
         for i in range(stateNum):
-            state = initialState[i].tolist()
+            tempstate = initialState[i].tolist() # 这里就取了一个，可以考虑从0开始取
+            state = tempstate[-3:] + tempstate[:3]
+            refState = tempstate[3:6]
             timeStart = time.time()
-            _, control = solver.MPCSolver(state[0:6], state[6:], mpcstep)
+            _, control = solver.MPCSolver(state, refState, mpcstep, isReal=False)
             timeMPC += time.time() - timeStart
             controlMPC = np.append(controlMPC, control[0])
-
-            # plotX = [state[0], state[0] + 10 * math.cos(state[2])]
-            # plotY = [state[1], state[1] + 10 * math.sin(state[2])]
-            # plt.plot(plotX, plotY, color='red', linewidth=1)
-            # plt.scatter(state[6], state[7], color='blue', s=5)
-            # plt.title('x='+str(round(state[0], 1)) +
-            #           ',y='+str(round(state[1], 1)) +
-            #           ',delta='+str(round(control[0][1], 4))
-            #           )
-            # plt.pause(0.1)
-            # TODO: 清除
-            # plt.cla()
-            # plt.plot(x, y, color='gray')
-            # plt.xlim(-5, 100)
-            # plt.ylim(-1.1, 1.1)
-        # plt.close()
-        # plt.ioff()
-        timeMPC = timeMPC
         controlMPC = np.reshape(controlMPC, (-1, actionDim))
-        print("MPC{} consumes {:.3f}s {} step".format(
-            mpcstep, timeMPC, stateNum))
-        np.savetxt(os.path.join(simu_dir, "controlOneStepMPC" +
-                   str(mpcstep)+".csv"), controlMPC, delimiter=',')
-        # maxAction = np.max(controlMPC, 0)
-        # minACtion = np.min(controlMPC, 0)
+        print("MPC{} consumes {:.3f}s {} step".format(mpcstep, timeMPC, stateNum))
+        # TODO: 这么做合适吗
         maxAction = np.array(env.actionHigh)
         minAction = np.array(env.actionLow)
+        # maxAction = np.max(controlMPC, 0)
+        # minACtion = np.min(controlMPC, 0)
         relativeError = np.abs(
             (controlADP - controlMPC)/(maxAction - minAction))
         relativeErrorMax = np.max(relativeError, 0)
+        relativeErrorMean = np.mean(relativeError, 0)
         for i in range(actionDim):
-            print('max relative error for action{}: {:.1f}%'.format(
-                i+1, relativeErrorMax[i]*100))
+            print('Relative error for action{}'.format(i+1))
+            print('Mean: {:.2f}%, Max: {:.2f}'.format(relativeErrorMean[i]*100,relativeErrorMax[i]*100))
+        saveMPC = np.concatenate((controlADP, controlMPC, relativeError), axis = 1)
+        with open(simu_dir + "/simulationOneStepMPC_"+str(mpcstep)+".csv", 'ab') as f:
+            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="ADP_a,ADP_delta,MPC_a,MPC_delta,rel_a,rel_delta")
+        plt.figure()
+        data = relativeError[:, 0]
+        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
+        plt.xlabel('Relative Error')
+        plt.ylabel('Frequency')
+        plt.title('Relative Error of control a')
+        plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_a.png')
+        plt.close()
+        plt.figure()
+        data = relativeError[:, 1]
+        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
+        plt.xlabel('Relative Error')
+        plt.ylabel('Frequency')
+        plt.title('Relative Error of control delta')
+        plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_delta.png')
+        plt.close()
 
 
-# def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
-#     # MPC
-#     env = TrackingEnv()
-#     env.seed(0)
-#     stateDim = env.stateDim - 2
-#     actionDim = env.actionSpace.shape[0]
-#     policy = Actor(stateDim, actionDim)
-#     policy.loadParameters(ADP_dir)
-#     value = Critic(stateDim, 1)
-#     value.loadParameters(ADP_dir)
-#     solver = Solver()
-#     initialState = env.initializeState(stateNum)
-#     timeStart = time.time()
-#     controlADP = policy(initialState).detach()
-#     timeADP = (time.time() - timeStart)
-#     controlADP = controlADP.numpy()
-#     np.savetxt(os.path.join(simu_dir, "controlOneStepADP.csv"),
-#                controlADP, delimiter=',')
-#     print("ADP consumes {:.3f}s {} step".format(timeADP, stateNum))
-#     for mpcstep in MPCStep:
-#         timeMPC = 0
-#         controlMPC = np.empty((0, 2))
-#         # plt.ion()
-#         # plt.figure()
-#         # x = torch.linspace(0, 30*np.pi, 1000)
-#         # y = env.referenceCurve(x)
-#         # plt.xlim(-5, 100)
-#         # plt.ylim(-1.1, 1.1)
-#         # plt.plot(x, y, color='gray')
-#         print("----------------------Start Solving MPC" +
-#               str(mpcstep)+"!----------------------")
-#         for i in range(stateNum):
-#             state = initialState[i].tolist()
-#             timeStart = time.time()
-#             _, control = solver.MPCSolver(state[0:6], state[6:], mpcstep)
-#             timeMPC += time.time() - timeStart
-#             controlMPC = np.append(controlMPC, control[0])
+    def simulationReal(MPCStep, ADP_dir, simu_dir):
+        # 真实时域ADP、MPC应用
+        env = TrackingEnv()
+        env.seed(0)
+        stateDim = env.stateDim - 2
+        actionDim = env.actionSpace.shape[0]
+        policy = Actor(stateDim, actionDim)
+        policy.loadParameters(ADP_dir)
+        value = Critic(stateDim, 1)
+        value.loadParameters(ADP_dir)
+        solver = Solver()
+        env.policyTest(policy, -1, simu_dir)
+        for mpcstep in MPCStep:
+            print("----------------------Start Solving!----------------------")
+            print("MPCStep: {}".format(mpcstep))
+            # plt.ion()
+            plt.figure(mpcstep)
+            state = env.initState
+            count = 0
+            x = torch.linspace(0, 30*np.pi, 1000)
+            y = env.referenceCurve(x)
+            plt.xlim(-5, 100)
+            plt.ylim(-1.1, 1.1)
+            plt.plot(x, y, color='gray')
+            controlMPC = np.empty(0)
+            stateMPC = np.empty(0)
+            while(count < env.testStep):
+                refState = env.referencePoint(state[0], MPCflag=1)
+                _, control = solver.MPCSolver(state, refState, mpcstep)
+                stateMPC = np.append(stateMPC, np.arry(state))
+                stateMPC = np.append(stateMPC, np.array(refState))
+                action = control[0].tolist()
+                state = env.vehicleDynamic(
+                    state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
+                plt.scatter(state[0], state[1], color='red', s=2)
+                plt.scatter(refState[0], refState[1], color='blue', s=2)
+                controlMPC = np.append(controlMPC, control[0])
+                # plt.pause(0.05)
+                count += 1
+                if count % 10 == 0:
+                    print('count/totalStep: {}/{}'.format(count, env.testStep))
+            plt.title('MPCStep:'+str(mpcstep))
+            plt.savefig(simu_dir + '/FullMPCStep'+str(mpcstep)+'.png')
+            # plt.ioff()
+            plt.close()
+            controlMPC = np.reshape(controlMPC, (-1, actionDim))
+            np.savetxt(os.path.join(simu_dir, "controlFullMPC" +
+                    str(mpcstep)+".csv"), controlMPC, delimiter=',')
+            stateMPC = np.reshape(stateMPC, (-1, stateDim + 2))
+            np.savetxt(os.path.join(simu_dir, "stateFullMPC" +
+                    str(mpcstep)+".csv"), stateMPC, delimiter=',')
 
-#             # plotX = [state[0], state[0] + 10 * math.cos(state[2])]
-#             # plotY = [state[1], state[1] + 10 * math.sin(state[2])]
-#             # plt.plot(plotX, plotY, color='red', linewidth=1)
-#             # plt.scatter(state[6], state[7], color='blue', s=5)
-#             # plt.title('x='+str(round(state[0], 1)) +
-#             #           ',y='+str(round(state[1], 1)) +
-#             #           ',delta='+str(round(control[0][1], 4))
-#             #           )
-#             # plt.pause(0.1)
-#             # TODO: 清除
-#             # plt.cla()
-#             # plt.plot(x, y, color='gray')
-#             # plt.xlim(-5, 100)
-#             # plt.ylim(-1.1, 1.1)
-#         # plt.close()
-#         # plt.ioff()
-#         timeMPC = timeMPC
-#         controlMPC = np.reshape(controlMPC, (-1, actionDim))
-#         print("MPC{} consumes {:.3f}s {} step".format(
-#             mpcstep, timeMPC, stateNum))
-#         np.savetxt(os.path.join(simu_dir, "controlOneStepMPC" +
-#                    str(mpcstep)+".csv"), controlMPC, delimiter=',')
-#         # maxAction = np.max(controlMPC, 0)
-#         # minACtion = np.min(controlMPC, 0)
-#         maxAction = np.array(env.actionHigh)
-#         minAction = np.array(env.actionLow)
-#         relativeError = np.abs(
-#             (controlADP - controlMPC)/(maxAction - minAction))
-#         relativeErrorMax = np.max(relativeError, 0)
-#         for i in range(actionDim):
-#             print('max relative error for action{}: {:.1f}%'.format(
-#                 i+1, relativeErrorMax[i]*100))
 
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-
-    simu_dir = "./Simulation_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M")
-    os.makedirs(simu_dir, exist_ok=True)
-
-    # 真实时域中MPC表现
+    ADP_dir = './Results_dir/2022-03-25-15-36-08'
+    # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
+    # simu_dir = "./Simulation_dir/simulationMPC" + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # os.makedirs(simu_dir, exist_ok=True)
     # simulationMPC(MPCStep, simu_dir)
 
-    # 虚拟时域中MPC表现（开环控制）
+    # 2. 虚拟时域中MPC表现（开环控制）
+    # simu_dir = "./Simulation_dir/simulationOpen" + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # os.makedirs(simu_dir, exist_ok=True)
     # simulationOpen(MPCStep, simu_dir)
 
-    ADP_dir = './Results_dir/2022-03-25-15-36-08'
-    simu_dir = ADP_dir + '/' + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # 3. 单步ADP、MPC测试
+    # simu_dir = ADP_dir + '/simulationOneStep' + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
+
+    # 4. 真实时域ADP、MPC应用
+    simu_dir = ADP_dir + '/simulationFull' + datetime.now().strftime("%Y-%m-%d-%H-%M")
     os.makedirs(simu_dir, exist_ok=True)
-
-    # 单步ADP、MPC测试
-    simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
-
-    # 真实时域ADP、MPC应用
-    # simulationFull(MPCStep, ADP_dir, simu_dir)
+    simulationReal(MPCStep, ADP_dir, simu_dir)
