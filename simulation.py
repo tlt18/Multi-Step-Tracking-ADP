@@ -160,57 +160,189 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
         plt.close()
 
 
-    def simulationReal(MPCStep, ADP_dir, simu_dir):
-        # 真实时域ADP、MPC应用
-        env = TrackingEnv()
-        env.seed(0)
-        stateDim = env.stateDim - 2
-        actionDim = env.actionSpace.shape[0]
-        policy = Actor(stateDim, actionDim)
-        policy.loadParameters(ADP_dir)
-        value = Critic(stateDim, 1)
-        value.loadParameters(ADP_dir)
-        solver = Solver()
-        env.policyTest(policy, -1, simu_dir)
-        for mpcstep in MPCStep:
-            print("----------------------Start Solving!----------------------")
-            print("MPCStep: {}".format(mpcstep))
-            # plt.ion()
-            plt.figure(mpcstep)
-            state = env.initState
-            count = 0
-            x = torch.linspace(0, 30*np.pi, 1000)
-            y = env.referenceCurve(x)
-            plt.xlim(-5, 100)
-            plt.ylim(-1.1, 1.1)
-            plt.plot(x, y, color='gray')
-            controlMPC = np.empty(0)
-            stateMPC = np.empty(0)
-            while(count < env.testStep):
-                refState = env.referencePoint(state[0], MPCflag=1)
-                _, control = solver.MPCSolver(state, refState, mpcstep)
-                stateMPC = np.append(stateMPC, np.arry(state))
-                stateMPC = np.append(stateMPC, np.array(refState))
-                action = control[0].tolist()
-                state = env.vehicleDynamic(
-                    state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
-                plt.scatter(state[0], state[1], color='red', s=2)
-                plt.scatter(refState[0], refState[1], color='blue', s=2)
-                controlMPC = np.append(controlMPC, control[0])
-                # plt.pause(0.05)
-                count += 1
-                if count % 10 == 0:
-                    print('count/totalStep: {}/{}'.format(count, env.testStep))
-            plt.title('MPCStep:'+str(mpcstep))
-            plt.savefig(simu_dir + '/FullMPCStep'+str(mpcstep)+'.png')
-            # plt.ioff()
-            plt.close()
-            controlMPC = np.reshape(controlMPC, (-1, actionDim))
-            np.savetxt(os.path.join(simu_dir, "controlFullMPC" +
-                    str(mpcstep)+".csv"), controlMPC, delimiter=',')
-            stateMPC = np.reshape(stateMPC, (-1, stateDim + 2))
-            np.savetxt(os.path.join(simu_dir, "stateFullMPC" +
-                    str(mpcstep)+".csv"), stateMPC, delimiter=',')
+def simulationReal(MPCStep, ADP_dir, simu_dir):
+    # 真实时域ADP、MPC应用
+    env = TrackingEnv()
+    env.seed(0)
+    relstateDim = env.relstateDim
+    actionDim = env.actionSpace.shape[0]
+    policy = Actor(relstateDim, actionDim)
+    policy.loadParameters(ADP_dir)
+    value = Critic(relstateDim, 1)
+    value.loadParameters(ADP_dir)
+    solver = Solver()
+    initialState = env.initializeState(1) # [u,v,omega,[xr,yr,phir],x,y,phi]
+
+    # ADP
+    stateAdp = initialState.clone()
+    controlADPList = np.empty(0)
+    stateADPList = np.empty(0)
+    rewardADP = np.empty(0)
+    count = 0
+    while(count < env.testStep):
+        stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy())
+        stateADPList = np.append(stateADPList, stateAdp[0, :6].numpy())
+        relState = env.relStateCal(stateAdp)
+        controlAdp = policy(relState).detach()
+        stateAdp, reward, done = env.stepReal(stateAdp, controlAdp)
+        controlADPList = np.append(controlADPList, controlAdp[0].numpy())
+        rewardADP = np.append(rewardADP, reward.numpy())
+        count += 1
+        stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
+        controlADPList = np.reshape(controlADPList, (-1, actionDim))
+        saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
+        with open(simu_dir + "/simulationRealADP.csv", 'ab') as f:
+            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir")
+    controlMPCAll = []
+    stateMPCAll = []
+    rewardMPCAll = []
+    for mpcstep in MPCStep:
+        print("----------------------Start Solving!----------------------")
+        print("MPCStep: {}".format(mpcstep))
+        tempstate = initialState[0].tolist() # 这里就取了一个，可以考虑从0开始取
+        stateMpc = tempstate[-3:] + tempstate[:3]
+        refStateMpc = tempstate[3:6]
+        count = 0
+        controlMPCList = np.empty(0)
+        stateMPCList = np.empty(0)
+        rewardMPC = np.empty(0)
+        while(count < env.testStep):
+            # MPC
+            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+            stateMPCList = np.append(stateMPCList, np.array(stateMpc))
+            stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
+            action = control[0].tolist()
+            reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
+            stateMpc = env.vehicleDynamic(
+                stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
+            refStateMpc = env.referenceFind(refStateMpc[0], MPCflag=1)
+            rewardMPC = np.append(rewardMPC, reward)
+            controlMPCList = np.append(controlMPCList, control[0])
+            count += 1
+        stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
+        controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
+        saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
+        with open(simu_dir + "/simulationRealMPC_"+str(mpcstep)+".csv", 'ab') as f:
+            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir")
+        rewardMPCAll.append(rewardMPC)
+        stateMPCAll.append(stateMPCList)
+        controlMPCAll.append(controlMPCList)
+        # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStep, rewardMPC, rewardADP.item()))
+        # y v.s. x
+        plt.figure(mpcstep)
+        x = torch.linspace(0, 30*np.pi, 1000)
+        y, _ = env.referenceCurve(x)
+        plt.xlim(-5, 100)
+        plt.ylim(-1.1, 1.1)
+        plt.plot(x, y, color='gray', linewidth=1)
+        # MPC
+        plt.plot(stateMPCList[:,0], stateMPCList[:,1], linewidth=0.5, markersize=1, color='blue', marker='o', linestyle='dashed')
+        # ADP
+        plt.plot(stateADPList[:,0], stateADPList[:,1], linewidth=0.5, markersize=1, color='red', marker='o')
+        # ref
+        plt.scatter(stateMPCList[:,-3], stateMPCList[:,-2], color='gray', s = 2)
+        plt.legend(labels=["reference", "MPC", "ADP"])
+        plt.title('y-x ADP v.s. MPC-'+str(mpcstep))
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.savefig(simu_dir + '/simulationRealADP_'+str(mpcstep)+'.png')
+        plt.close()
+    # x v.s. t
+    MPCAll = [mpc[:,0] for mpc in stateMPCAll]
+    ADP = stateADPList[:,0]
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'x [m]'
+    title = 'x-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # x error v.s. t
+    MPCAll = [stateMPCAll[i][:,0]-stateMPCAll[i][:,-3] for i in range(len(stateMPCAll))]
+    ADP = stateADPList[:,0] - stateADPList[:,-3]
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'x error[m]'
+    title = 'x error-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # y v.s. t
+    MPCAll = [mpc[:,1] for mpc in stateMPCAll]
+    ADP = stateADPList[:,1]
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'y [m]'
+    title = 'y-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # y error v.s. t
+    MPCAll = [stateMPCAll[i][:,1]-stateMPCAll[i][:,-2] for i in range(len(stateMPCAll))]
+    ADP = stateADPList[:,1] - stateADPList[:,-2]
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'y error[m]'
+    title = 'y error-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # phi v.s. t
+    MPCAll = [mpc[:,2]* 180/np.pi for mpc in stateMPCAll] 
+    ADP = stateADPList[:,2] * 180/np.pi
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'phi [°]'
+    title = 'phi-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # a v.s. t
+    MPCAll = [mpc[:,0] for mpc in controlMPCAll]
+    ADP = controlADPList[:,0]
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'a [m/s^2]'
+    title = 'a-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # delta v.s. t
+    MPCAll = [mpc[:,1]* 180/np.pi for mpc in controlMPCAll]
+    ADP = controlADPList[:,1] * 180/np.pi
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'delta [°]'
+    title = 'delta-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+    # utility v.s. t
+    MPCAll = rewardMPCAll
+    ADP = rewardADP
+    xCoor = np.array(range(env.testStep)) * env.T
+    xName = 'Time [s]'
+    yName = 'Utility '
+    title = 'utility-t ADP v.s. MPC'
+    comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title)
+        # 动图
+        # plt.figure(mpcstep)
+        # plt.ion()
+        # x = torch.linspace(0, 30*np.pi, 1000)
+        # y, _ = env.referenceCurve(x)
+        # plt.xlim(-5, 100)
+        # plt.ylim(-1.1, 1.1)
+        # plt.plot(x, y, color='gray', linewidth=1)
+        # plt.title('Compare ADP v.s. MPC-'+str(mpcstep))
+        # for i in range(env.testStep):
+        #     # MPC
+        #     plt.scatter(stateMPCList[i,0], stateMPCList[i,1], s=5, color='blue')
+        #     # ADP
+        #     plt.scatter(stateADPList[i,0], stateADPList[i,1], s=5, color='red')
+        #     # ref
+        #     plt.scatter(stateMPCList[i,-3], stateMPCList[i,-2], s=5, color='green')
+        #     plt.pause(0.05)
+        # plt.ioff()
+        # plt.close()
+    
+def comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title):
+    plt.figure()
+    colorList = ['blue', 'darkorange', 'green', 'yellow']
+    for i in range(len(MPCAll)):
+        MPC = MPCAll[i]
+        plt.plot(xCoor, MPC, linewidth=2, color = colorList[i], linestyle = '-.')
+    plt.plot(xCoor, ADP, linewidth = 2, color='red',linestyle = '-')
+    plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP'])
+    plt.xlabel(xName)
+    plt.ylabel(yName)
+    plt.savefig(simu_dir + '/' + title + '.png')
+    plt.close()
 
 
 if __name__ == '__main__':

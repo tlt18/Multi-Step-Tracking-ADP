@@ -217,10 +217,12 @@ class TrackingEnv(gym.Env):
         plt.title('iteration:'+str(iteration))
         plt.savefig(log_dir + '/iteration'+str(iteration)+'.png')
         plt.close()
+
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
-        np.savetxt(os.path.join(log_dir, "stateFullADP"+str(iteration)+".csv"), stateADP, delimiter=',')
-        controlADP = np.reshape(stateADP, (-1, 2))
-        np.savetxt(os.path.join(log_dir, "controlFullADP"+str(iteration)+".csv"), controlADP, delimiter=',')
+        controlADP = np.reshape(controlADP, (-1, 2))
+        saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:6], controlADP), 1)
+        with open(log_dir + "/state_"+str(iteration)+".csv", 'ab') as f:
+            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir,a,delta")
 
     def policyRender(self, policy):
         # 初始化

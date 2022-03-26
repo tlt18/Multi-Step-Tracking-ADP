@@ -1,18 +1,19 @@
+import os
+import shutil
+import time
+from datetime import datetime
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+
 from config import trainConfig
 from myenv import TrackingEnv
 from network import Actor, Critic
 from train import Train
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-from datetime import datetime
-import os
-import time
-import shutil
 
 # mode setting
 isTrain = True
-
 
 # parameters setting
 config = trainConfig()
@@ -25,8 +26,8 @@ env = TrackingEnv()
 env.seed(0)
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
-policy = Actor(relstateDim, actionDim, lr = config.lrPolicy)
-value = Critic(relstateDim, 1, lr = config.lrValue)
+policy = Actor(relstateDim, actionDim, lr=config.lrPolicy)
+value = Critic(relstateDim, 1, lr=config.lrValue)
 log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(log_dir + '/train', exist_ok=True)
@@ -57,5 +58,3 @@ if isTrain:
             train.saveDate(log_dir+'/train')
             # env.policyRender(policy)
         iterarion += 1
-
-
