@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 class Train():
     def __init__(self, env):
         self.env = env
-        self.lossIteraValue = np.empty([0, 1])
-        self.lossIteraPolicy = np.empty([0, 1])
-        self.lossValue = []
-        self.lossPolicy = []
+        self.lossIteraValue = np.empty(0)
+        self.lossIteraPolicy = np.empty(0)
+        self.lossValue = np.empty(0)
+        self.lossPolicy = np.empty(0)
         self.state = None
         config = trainConfig()
         self.stepForwardPEV = config.stepForwardPEV
@@ -18,6 +18,7 @@ class Train():
         self.updVirtual = config.updVirtual
         self.batchSize = config.batchSize
         self.gammar = config.gammar
+        self.lifeMax = config.lifeMax
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
         self.batchDataLife = torch.zeros(self.batchSize)
         self.reset()
@@ -36,11 +37,10 @@ class Train():
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.reset(sum(done==1))
             self.batchDataLife[done==1] = 0
-        lifeMax = 5
-        if max(self.batchDataLife) > lifeMax:
-            self.batchData[self.batchDataLife > lifeMax] =\
-                 self.env.reset(sum(self.batchDataLife > lifeMax))
-            self.batchDataLife[self.batchDataLife > lifeMax] = 0
+        if max(self.batchDataLife) > self.lifeMax:
+            self.batchData[self.batchDataLife > self.lifeMax] =\
+                 self.env.reset(sum(self.batchDataLife > self.lifeMax))
+            self.batchDataLife[self.batchDataLife > self.lifeMax] = 0
 
     def policyEvaluate(self, policy, value):
         relState = self.env.relStateCal(self.batchData)
@@ -94,14 +94,14 @@ class Train():
             self.lossIteraPolicy, lossPolicy.detach().numpy())
 
     def calLoss(self):
-        self.lossValue.append(self.lossIteraValue.mean())
-        self.lossPolicy.append(self.lossIteraPolicy.mean())
-        self.lossIteraValue = np.empty([0, 1])
-        self.lossIteraPolicy = np.empty([0, 1])
+        self.lossValue = np.append(self.lossValue, self.lossIteraValue.mean())
+        self.lossPolicy = np.append(self.lossPolicy, self.lossIteraPolicy.mean())
+        self.lossIteraValue = np.empty(0)
+        self.lossIteraPolicy = np.empty(0)
 
     def saveDate(self, log_dir):
-        np.savetxt(os.path.join(log_dir, "value_loss.csv"), self.lossValue, delimiter=',')
-        np.savetxt(os.path.join(log_dir, "policy_loss.csv"), self.lossPolicy, delimiter=',')
+        with open(log_dir + "/loss.csv", 'wb') as f:
+            np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
         plt.figure()
         plt.plot(range(len(self.lossValue)), self.lossValue)
         plt.xlabel('iteration')

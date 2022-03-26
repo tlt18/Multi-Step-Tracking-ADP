@@ -3,13 +3,14 @@ import math
 class trainConfig():
     def __init__(self):
         self.iterationMax = 50000
-        self.iterationPrint = 10
+        self.iterationPrint = 50
         self.iterationSave = 500
-        self.lrPolicy = 6e-4
-        self.lrValue = 6e-3
+        self.lrPolicy = 1e-3
+        self.lrValue = 1e-2
         self.stepForwardPEV = 5
         self.stepForwardPIM = 4
-        self.gammar = 0.8
+        self.gammar = 0.9
+        self.lifeMax = 10
         self.batchSize = 256
         self.updVirtual = True
 

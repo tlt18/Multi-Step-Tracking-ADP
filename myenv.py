@@ -61,13 +61,13 @@ class TrackingEnv(gym.Env):
     def reset(self, batchSize):
         # 状态空间 x = [u, v, omega, [xr, yr, phir], x, y, phi]
         batchState = torch.empty([batchSize, self.stateDim])
-        batchState[:, 0] = torch.normal(self.refV, self.refV/4, (batchSize, ))  # u 纵向
-        batchState[:, 1] = torch.normal(0, self.refV/5, (batchSize, ))  # v 横向
-        batchState[:, 2] = torch.normal(0, 0.06, (batchSize, ))  # omega
+        batchState[:, 0] = torch.normal(self.refV, self.refV/2, (batchSize, ))  # u 纵向
+        batchState[:, 1] = torch.normal(0, self.refV/3, (batchSize, ))  # v 横向
+        batchState[:, 2] = torch.normal(0, 0.1, (batchSize, ))  # omega
         batchState[:, -3] = torch.rand(batchSize) * 2*np.pi/self.curveK # x
         refy, refphi = self.referenceCurve(batchState[:, -3])
-        batchState[:, -2] = torch.normal(refy, torch.abs(refy/4))  # y
-        batchState[:, -1] = torch.normal(refphi, torch.abs(refphi/4))  # phi
+        batchState[:, -2] = torch.normal(refy, torch.abs(refy/3))  # y
+        batchState[:, -1] = torch.normal(refphi, torch.abs(refphi/3))  # phi
         batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3]), -1) # 通过x生成参考点
         return batchState
 
