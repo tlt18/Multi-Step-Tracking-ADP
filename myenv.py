@@ -52,8 +52,8 @@ class TrackingEnv(gym.Env):
         # 状态空间 x = [u, v, omega, x, y, phi] u、v分别是纵向速度和横向速度
         # 由于MPC需要在虚拟轴上求解，因此需要把y的范围写大一点
         # TODO:横摆角速度的范围
-        self.stateLow = [0, -5*self.refV, -20, -inf, -5*self.curveA, -np.pi]
-        self.stateHigh = [5*self.refV, 5*self.refV, 20, inf, 5*self.curveA, np.pi]
+        self.stateLow = [0, -5*self.refV, -20, -inf, -inf, -np.pi]
+        self.stateHigh = [5*self.refV, 5*self.refV, 20, inf, inf, np.pi]
         self.refNum = config.refNum
         self.stateDim = 6 + 3 * self.refNum # 增广状态维度
         self.relstateDim = 3 + 3 * self.refNum # 相对状态维度
@@ -103,15 +103,15 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0 :
             reward = \
                 torch.pow(state[:, -3] - state[:, 3], 2) +\
-                4 * torch.pow(state[:, -2] - state[:, 4], 2) +\
-                0.05 * torch.pow(control[:, 0], 2) +\
-                0.01 * torch.pow(control[:, 1], 2)
+                torch.pow(state[:, -2] - state[:, 4], 2) +\
+                0.01 * torch.pow(control[:, 0]/self.actionHigh[0], 2) +\
+                0.01 * torch.pow(control[:, 1]/self.actionHigh[1], 2)
         else:
             reward = \
                 pow(state[-3] - state[3], 2) +\
                 4 * pow(state[-2] - state[4], 2) +\
-                0.05 * pow(control[0], 2) +\
-                0.01 * pow(control[1], 2)
+                0.01 * pow(control[0]/self.actionHigh[0], 2) +\
+                0.01 * pow(control[1]/self.actionHigh[1], 2)
         return reward
 
     def isDone(self, state, control):
@@ -160,6 +160,7 @@ class TrackingEnv(gym.Env):
         return [refNextx, refNexty, refNextphi]
 
     def referenceFind(self, x, MPCflag = 0):
+        
         # input: 初始时刻的x坐标（用于第一次生成参考点），或者参考点的x坐标（用于真实时域中参考点递推）
         # output: 后续N个参考点
         if MPCflag == 0:
@@ -169,6 +170,8 @@ class TrackingEnv(gym.Env):
         refx = self.T * self.refV * n
         refy, refphi = self.referenceCurve(refx, MPCflag)
         return [refx, refy, refphi]
+
+
 
     def referenceCurve(self, x, MPCflag = 0):
         if MPCflag == 0:
@@ -266,7 +269,7 @@ class TrackingEnv(gym.Env):
         return initialState
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-03-24-23-11-27'
+    ADP_dir = './Results_dir/2022-03-26-14-59-00'
     env = TrackingEnv()
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)

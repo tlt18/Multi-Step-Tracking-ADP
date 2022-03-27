@@ -41,9 +41,9 @@ class vehicleDynamic():
 
 class MPCConfig():
     def __init__(self):
-        self.MPCStep = [5, 10, 20]
+        # self.MPCStep = [5, 10, 20]
         config = trainConfig()
         self.gammar = config.gammar
-        # self.MPCStep = [80]
+        self.MPCStep = [20]
         # self.MPCStep = [100]
 

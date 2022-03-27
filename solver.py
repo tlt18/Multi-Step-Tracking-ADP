@@ -21,12 +21,6 @@ class Solver():
         self.T = self.env.T
         state = SX.sym('state', self.stateDim)
         action = SX.sym('action', self.actionDim)
-        # stateNext = self.env.vehicleDynamic(
-        #     state[0], state[1], state[2],
-        #     state[3], state[4], state[5],
-        #     action[0], action[1], MPCflag=1)
-        # stateNextt = vertcat(stateNext[0], stateNext[1], stateNext[2],
-        #                     stateNext[3], stateNext[4], stateNext[5])
         # 替换model
         self.T = 0.1  # 时间间隔
         self.m = 1520  # 自车质量
@@ -51,9 +45,9 @@ class Solver():
 
         refState = SX.sym('refState',3)
         cost = pow(state[0] - refState[0], 2) +\
-            4 * pow(state[1] - refState[1], 2) +\
-            0.05 * pow(action[0], 2) +\
-            0.01 * pow(action[1], 2)
+            pow(state[1] - refState[1], 2) +\
+            0.01 * pow(action[0]/self.env.actionHigh[0], 2) +\
+            0.01 * pow(action[1]/self.env.actionHigh[1], 2)
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
     def MPCSolver(self, initState, refState, predictStep, isReal = True):
@@ -101,7 +95,7 @@ class Solver():
         nlp = dict(f=J, g=vertcat(*G), x=vertcat(*x))
         solver = nlpsol('res', 'ipopt', nlp, self._sol_dic)
         # print(solver)
-        res = solver(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg, x0=0.1)
+        res = solver(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg, x0=0)
         # 保存结果
         resX = np.array(res['x'])
         # print(res['x'])

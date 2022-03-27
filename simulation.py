@@ -69,7 +69,6 @@ def simulationOpen(MPCStep, simu_dir):
         print("----------------------Start Solving!----------------------")
         print("MPCStep: {}".format(mpcstep))
         plt.figure(mpcstep)
-
         tempstate = env.initializeState(200)
         tempstate = tempstate[0].tolist() # 这里就取了一个，可以考虑从0开始取
         state = tempstate[-3:] + tempstate[:3]
@@ -83,17 +82,27 @@ def simulationOpen(MPCStep, simu_dir):
         _, control = solver.MPCSolver(state, refState, mpcstep, isReal=False)
         plt.scatter(state[0], state[1], color='red', s=5)
         plt.scatter(refState[0], refState[1], color='blue', s=5)
+        stateList = np.empty(0)
+        refList = np.empty(0)
+        stateList = np.append(stateList, state)
+        refList = np.append(refList, refState)
         while(count < mpcstep):
             action = control[count].tolist()
             state = env.vehicleDynamic(
                 state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
             refState = env.refdynamicvirtual(refState, MPCflag=1)[:3]
+            stateList = np.append(stateList, state)
+            refList = np.append(refList, refState)
             plt.scatter(state[0], state[1], color='red', s=5)
             plt.scatter(refState[0], refState[1], color='blue', s=5)
             count += 1
         plt.title('MPCStep:'+str(mpcstep))
         plt.savefig(simu_dir + '/simulationOpen'+str(mpcstep)+'.png')
         plt.close()
+        stateList = np.reshape(stateList, (-1, 6))
+        refList = np.reshape(refList, (-1, env.refNum * 3))
+        if mpcstep==MPCStep[-1]:
+            animationPlot(stateList[:,:2], refList[:,:2],'x', 'y')
         
 def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
     # 单步ADP、MPC测试
@@ -138,7 +147,7 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
         relativeErrorMean = np.mean(relativeError, 0)
         for i in range(actionDim):
             print('Relative error for action{}'.format(i+1))
-            print('Mean: {:.2f}%, Max: {:.2f}'.format(relativeErrorMean[i]*100,relativeErrorMax[i]*100))
+            print('Mean: {:.2f}%, Max: {:.2f}%'.format(relativeErrorMean[i]*100,relativeErrorMax[i]*100))
         saveMPC = np.concatenate((controlADP, controlMPC, relativeError), axis = 1)
         with open(simu_dir + "/simulationOneStepMPC_"+str(mpcstep)+".csv", 'ab') as f:
             np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="ADP_a,ADP_delta,MPC_a,MPC_delta,rel_a,rel_delta")
@@ -158,7 +167,6 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
         plt.title('Relative Error of control delta')
         plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_delta.png')
         plt.close()
-
 
 def simulationReal(MPCStep, ADP_dir, simu_dir):
     # 真实时域ADP、MPC应用
@@ -191,8 +199,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
         controlADPList = np.reshape(controlADPList, (-1, actionDim))
         saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
-        with open(simu_dir + "/simulationRealADP.csv", 'ab') as f:
-            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir")
+    with open(simu_dir + "/simulationRealADP.csv", 'ab') as f:
+        np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir,a,delta")
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
@@ -223,7 +231,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
         saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
         with open(simu_dir + "/simulationRealMPC_"+str(mpcstep)+".csv", 'ab') as f:
-            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir")
+            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir,a,delta")
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
@@ -247,6 +255,35 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         plt.ylabel('y')
         plt.savefig(simu_dir + '/simulationRealADP_'+str(mpcstep)+'.png')
         plt.close()
+        # 计算相对误差
+        # maxAction = np.array(env.actionHigh)
+        # minAction = np.array(env.actionLow)
+        maxAction = np.max(controlMPCList, 0)
+        minAction = np.min(controlMPCList, 0)
+        relativeError = np.abs((controlADPList - controlMPCList)/(maxAction - minAction))
+        relativeErrorMax = np.max(relativeError, 0)
+        relativeErrorMean = np.mean(relativeError, 0)
+        for i in range(actionDim):
+            print('Relative error for action{}'.format(i+1))
+            print('Mean: {:.2f}%, Max: {:.2f}%'.format(relativeErrorMean[i]*100,relativeErrorMax[i]*100))
+        plt.figure()
+        data = relativeError[:, 0]
+        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
+        plt.xlabel('Relative Error')
+        plt.ylabel('Frequency')
+        plt.title('Relative Error of control a')
+        plt.savefig(simu_dir + '/relative error'+str(mpcstep)+'_a.png')
+        plt.close()
+        plt.figure()
+        data = relativeError[:, 1]
+        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
+        plt.xlim([0,0.1])
+        plt.xlabel('Relative Error')
+        plt.ylabel('Frequency')
+        plt.title('Relative Error of control delta')
+        plt.savefig(simu_dir + '/relative error'+str(mpcstep)+'_delta.png')
+        plt.close()
+
     # x v.s. t
     MPCAll = [mpc[:,0] for mpc in stateMPCAll]
     ADP = stateADPList[:,0]
@@ -333,7 +370,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     
 def comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title):
     plt.figure()
-    colorList = ['blue', 'darkorange', 'green', 'yellow']
+    colorList = ['green', 'darkorange', 'blue', 'yellow']
     for i in range(len(MPCAll)):
         MPC = MPCAll[i]
         plt.plot(xCoor, MPC, linewidth=2, color = colorList[i], linestyle = '-.')
@@ -344,29 +381,44 @@ def comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title):
     plt.savefig(simu_dir + '/' + title + '.png')
     plt.close()
 
+def animationPlot(state, refstate, xName, yName):
+    plt.figure()
+    plt.ion()
+    plt.xlabel(xName)
+    plt.ylabel(yName)
+    colorList = ['green', 'darkorange', 'blue', 'yellow']
+    plt.xlim([min(np.min(state[:,0]), np.max(refstate[:,0])), max(np.max(state[:,0]), np.max(refstate[:,0]))])
+    plt.ylim([min(np.min(state[:,1]), np.max(refstate[:,1])), max(np.max(state[:,1]), np.max(refstate[:,1]))])
+    for step in range(state.shape[0]):
+        plt.pause(1)
+        plt.scatter(state[step][0], state[step][1], color='red', s=5)
+        plt.scatter(refstate[step][0], refstate[step][1], color='blue', s=5)
+    plt.pause(20)
+    plt.ioff()
+    plt.close()
 
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-    ADP_dir = './Results_dir/2022-03-25-15-36-08'
+    ADP_dir = './Results_dir/2022-03-26-14-59-00'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
-    # simu_dir = "./Simulation_dir/simulationMPC" + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # simu_dir = "./Simulation_dir/simulationMPC" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     # os.makedirs(simu_dir, exist_ok=True)
     # simulationMPC(MPCStep, simu_dir)
 
     # 2. 虚拟时域中MPC表现（开环控制）
-    # simu_dir = "./Simulation_dir/simulationOpen" + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # simu_dir = "./Simulation_dir/simulationOpen" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     # os.makedirs(simu_dir, exist_ok=True)
     # simulationOpen(MPCStep, simu_dir)
 
     # 3. 单步ADP、MPC测试
-    # simu_dir = ADP_dir + '/simulationOneStep' + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    # simu_dir = ADP_dir + '/simulationOneStep' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     # os.makedirs(simu_dir, exist_ok=True)
     # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
 
     # 4. 真实时域ADP、MPC应用
-    simu_dir = ADP_dir + '/simulationFull' + datetime.now().strftime("%Y-%m-%d-%H-%M")
+    simu_dir = ADP_dir + '/simulationFull' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir)
