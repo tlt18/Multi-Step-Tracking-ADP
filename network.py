@@ -16,14 +16,33 @@ class Actor(nn.Module):
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
         
         # NN
+        # self.layers = nn.Sequential(
+        #     nn.Linear(inputSize, 256),
+        #     nn.ELU(),
+        #     nn.Linear(256, 256),
+        #     nn.ELU(),
+        #     nn.Linear(256, outputSize),
+        #     nn.Tanh()
+        # )
+
         self.layers = nn.Sequential(
             nn.Linear(inputSize, 256),
-            nn.ELU(),
+            nn.LayerNorm(256),
+            nn.Tanh(),
+
             nn.Linear(256, 256),
             nn.ELU(),
+
+            nn.Linear(256, 256),
+            nn.ELU(),
+
+            nn.Linear(256, 256),
+            nn.ELU(),
+            
             nn.Linear(256, outputSize),
             nn.Tanh()
         )
+
         # optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
@@ -68,7 +87,7 @@ class Critic(nn.Module):
             nn.Linear(256, 256),
             nn.ELU(),
             nn.Linear(256, outputSize),
-            # nn.ReLU()
+            nn.ReLU()
         )
         # self._norm_matrix = 0.1 * \
         #     torch.tensor([2, 5, 10, 10], dtype=torch.float32)
@@ -79,7 +98,8 @@ class Critic(nn.Module):
             self.opt, 1000, gamma=0.9, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
-        self._zero_state = torch.zeros(inputSize)
+        # self._zero_state = torch.zeros(inputSize)
+        self._zero_state = torch.tensor([5, 0, 0, 0, 0, 0])
 
     def forward(self, x):
         x = torch.mul(x, self._norm_matrix)

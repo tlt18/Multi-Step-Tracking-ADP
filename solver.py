@@ -45,9 +45,11 @@ class Solver():
 
         refState = SX.sym('refState',3)
         cost = pow(state[0] - refState[0], 2) +\
-            pow(state[1] - refState[1], 2) +\
-            0.01 * pow(action[0]/self.env.actionHigh[0], 2) +\
-            0.01 * pow(action[1]/self.env.actionHigh[1], 2)
+            4 * pow(state[1] - refState[1], 2) +\
+            0.5 * pow(action[0], 2) +\
+            0.5 * pow(action[1], 2)
+        # cost = pow(state[0] - refState[0], 2) +\
+        #     4 * pow(state[1] - refState[1], 2) 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
     def MPCSolver(self, initState, refState, predictStep, isReal = True):
@@ -78,9 +80,10 @@ class Solver():
             gammar *= self.gammar
             #########################真实/虚拟参考点更新############################
             if isReal==True:
-                refState = self.env.referenceFind(refState[0], MPCflag=1)[:3]
+                refState = self.env.refDynamicReal(refState[0], MPCflag=1)[:3]
             else:
-                refState = self.env.refdynamicvirtual(refState, MPCflag=1)[:3]
+                refState = self.env.refDynamicVirtual(refState, MPCflag=1)[:3]
+                # refState = self.env.refDynamicVirtualx(refState, predictStep, k, MPCflag=1)[:3]
             # 动力学约束
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
