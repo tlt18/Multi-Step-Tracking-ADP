@@ -11,7 +11,7 @@ class trainConfig():
         # self.lrValue = 1e-4
         self.stepForwardPEV = 5
         self.stepForwardPIM = 4
-        self.gammar = 1
+        self.gammar = 0.8
         self.lifeMax = 10
         self.batchSize = 256
         self.updVirtual = True
@@ -22,6 +22,8 @@ class vehicleDynamic():
         self.refV = 5
         self.curveK = 1/10
         self.curveA = 1
+        # self.curveK = 1/7.5
+        # self.curveA = 2
         # 固定参考点向前看个数
         self.refStep = 4
         # 车辆参数

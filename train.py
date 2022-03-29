@@ -58,9 +58,9 @@ class Train():
                 gammar *= self.gammar
             relState = self.env.relStateCal(stateNext)
             valueTaeget += (~done) * value(relState) * gammar
-        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() \
-        #     + 10 * torch.pow(value(value._zero_state),2) # 不能加这一项，因为没有平衡点的概念
-        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
+        lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() \
+            + 10 * torch.pow(value(value._zero_state),2) # 不能加这一项，因为没有平衡点的概念
+        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
         lossValue.backward()
         torch.nn.utils.clip_grad_norm_(value.parameters(), 10.0)

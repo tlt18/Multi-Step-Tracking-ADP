@@ -18,10 +18,6 @@ isTrain = True
 # parameters setting
 config = trainConfig()
 
-# random seed
-np.random.seed(0)
-torch.manual_seed(0)
-
 env = TrackingEnv()
 env.seed(0)
 relstateDim = env.relstateDim

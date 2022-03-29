@@ -58,6 +58,11 @@ class TrackingEnv(gym.Env):
         self.refNum = config.refNum
         self.stateDim = 6 + 3 * self.refNum # 增广状态维度
         self.relstateDim = 3 + 3 * self.refNum # 相对状态维度
+    
+    def seed(self, s):
+        # random seed
+        np.random.seed(s)
+        torch.manual_seed(s)
 
     def reset(self, batchSize):
         # 状态空间 x = [u, v, omega, [xr, yr, phir], x, y, phi]
@@ -71,6 +76,33 @@ class TrackingEnv(gym.Env):
         batchState[:, -1] = torch.normal(refphi, np.pi/12)  # phi
         batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3], isNoise=1), -1) # 通过x生成参考点
         return batchState
+
+    def resetTest(self, batchSize):
+        # 状态空间 x = [u, v, omega, [xr, yr, phir], x, y, phi]
+        batchState = torch.empty([batchSize, self.stateDim])
+        batchState[:, 0] = torch.normal(self.refV, self.refV/32, (batchSize, ))  # u 纵向
+        batchState[:, 1] = torch.normal(0, self.refV/50, (batchSize, ))  # v 横向
+        batchState[:, 2] = torch.normal(0, 0.01, (batchSize, ))  # omega
+        batchState[:, -3] = torch.rand(batchSize) * 2*np.pi/self.curveK # x
+        refy, refphi = self.referenceCurve(batchState[:, -3])
+        batchState[:, -2] = torch.normal(refy, 0.005 * self.curveA)  # y
+        batchState[:, -1] = torch.normal(refphi, np.pi/100)  # phi
+        batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3], isNoise=1), -1) # 通过x生成参考点
+        return batchState
+
+    def initializeState(self, stateNum, isNoise = 0):
+        initialState = torch.empty([stateNum, self.stateDim])
+        initialState[:, 0] = torch.ones((stateNum, )) * self.refV  # u 纵向
+        initialState[:, 1] = torch.zeros((stateNum, ))  # v 横向
+        initialState[:, 2] = torch.zeros((stateNum, ))  # omega
+        # x初始化可以线性也可以随机
+        initialState[:, -3] = torch.linspace(0, 2*np.pi/self.curveK, stateNum)  # x
+        # initialState[:, -3] = torch.rand(stateNum) * 2 * np.pi / self.curveK # x
+        refy, refphi = self.referenceCurve(initialState[:, -3])
+        initialState[:, -2] = refy  # y
+        initialState[:, -1] = refphi
+        initialState[:, 3:-3] = torch.stack(self.referenceFind(initialState[:, -3], isNoise = isNoise), -1)
+        return initialState
 
     def stepReal(self, state, control):
         # 在真实时域中递推参考点，使用固定参考点的方式。
@@ -104,7 +136,7 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0 :
             reward = \
                 torch.pow(state[:, -3] - state[:, 3], 2) +\
-                4 * torch.pow(state[:, -2] - state[:, 4], 2) +\
+                torch.pow(state[:, -2] - state[:, 4], 2) +\
                 0.5 * torch.pow(control[:, 0], 2) +\
                 0.5 * torch.pow(control[:, 1], 2)
                 # 0.5 * torch.pow(control[:, 0]/self.actionHigh[0], 2) +\
@@ -113,8 +145,8 @@ class TrackingEnv(gym.Env):
             reward = \
                 pow(state[-3] - state[3], 2) +\
                 4 * pow(state[-2] - state[4], 2) +\
-                0.05 * pow(control[0]/self.actionHigh[0], 2) +\
-                0.01 * pow(control[1]/self.actionHigh[1], 2)
+                0.5 * pow(control[0], 2) +\
+                0.5 * pow(control[1], 2)
         return reward
 
     def isDone(self, state, control):
@@ -238,12 +270,17 @@ class TrackingEnv(gym.Env):
             relState[:, relIndex + 2] = tempState[:, tempIndex + 2]
         return relState
 
-    def policyTestReal(self, policy, iteration, log_dir):
+    def policyTestReal(self, policy, iteration, log_dir, isNoise = 0):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
         state[:, :3] = torch.tensor(self.initState)[3:]
         state[:, -3:] = torch.tensor(self.initState)[:3]
         state[:, 3:-3] = torch.stack(self.referenceFind(state[:, -3]), -1)
+        if isNoise == 0:
+            state  = self.initializeState(1, isNoise = 0) # 替代
+        else: 
+            state  = self.resetTest(1)
+            # state  = self.initializeState(1, isNoise = 1) # 替代
         count = 0
         x = torch.linspace(0, 30*np.pi, 1000)
         y, _ = self.referenceCurve(x)
@@ -279,12 +316,14 @@ class TrackingEnv(gym.Env):
         plt.close()
         return rewardSum
 
-    def policyTestVirtual(self, policy, iteration, log_dir):
+    def policyTestVirtual(self, policy, iteration, log_dir, isNoise = 0):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
-        state[:, :3] = torch.tensor(self.initState)[3:]
-        state[:, -3:] = torch.tensor(self.initState)[:3]
-        state[:, 3:-3] = torch.stack(self.referenceFind(state[:, -3]), -1)
+        if isNoise == 0:
+            state  = self.initializeState(1, isNoise = 0) # 替代
+        else:
+            state  = self.resetTest(1) # 替代
+            # state  = self.initializeState(1, isNoise = 1) # 替代
         count = 0
         # x = torch.linspace(0, 30*np.pi, 1000)
         # y, _ = self.referenceCurve(x)
@@ -317,7 +356,6 @@ class TrackingEnv(gym.Env):
         plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
         plt.close()
         return rewardSum
-
 
 
     def policyRender(self, policy):
@@ -358,25 +396,19 @@ class TrackingEnv(gym.Env):
         plt.savefig(log_dir + '/reward.png')
         plt.close()
 
-    def initializeState(self, stateNum, isNoise = 0):
-        initialState = torch.empty([stateNum, self.stateDim])
-        initialState[:, 0] = torch.ones((stateNum, )) * self.refV  # u 纵向
-        initialState[:, 1] = torch.zeros((stateNum, ))  # v 横向
-        initialState[:, 2] = torch.zeros((stateNum, ))  # omega
-        # x初始化可以线性也可以随机
-        initialState[:, -3] = torch.linspace(0, 2*np.pi/self.curveK, stateNum)  # x
-        # initialState[:, -3] = torch.rand(stateNum) * 2 * np.pi / self.curveK # x
-        refy, refphi = self.referenceCurve(initialState[:, -3])
-        initialState[:, -2] = refy  # y
-        initialState[:, -1] = refphi
-        initialState[:, 3:-3] = torch.stack(self.referenceFind(initialState[:, -3], isNoise = isNoise), -1)
-        return initialState
+
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-03-29-00-26-42'
+    ADP_dir = './Results_dir/2022-03-29-19-45-05'
+    log_dir = ADP_dir + '/test'
+    os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
+    # env.seed(0)
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
-    env.policyRender(policy)
+    # env.policyRender(policy)
+    env.policyTestReal(policy, 0, log_dir)
+    env.policyTestVirtual(policy, 0, log_dir)
+
 
 
