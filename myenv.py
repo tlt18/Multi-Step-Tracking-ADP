@@ -136,9 +136,9 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0 :
             reward = \
                 torch.pow(state[:, -3] - state[:, 3], 2) +\
-                torch.pow(state[:, -2] - state[:, 4], 2) +\
+                4 * torch.pow(state[:, -2] - state[:, 4], 2) +\
                 0.5 * torch.pow(control[:, 0], 2) +\
-                0.5 * torch.pow(control[:, 1], 2)
+                0.1 * torch.pow(control[:, 1], 2)
                 # 0.5 * torch.pow(control[:, 0]/self.actionHigh[0], 2) +\
                 # 0.5 * torch.pow(control[:, 1]/self.actionHigh[1], 2)
         else:
@@ -146,7 +146,7 @@ class TrackingEnv(gym.Env):
                 pow(state[-3] - state[3], 2) +\
                 4 * pow(state[-2] - state[4], 2) +\
                 0.5 * pow(control[0], 2) +\
-                0.5 * pow(control[1], 2)
+                0.1 * pow(control[1], 2)
         return reward
 
     def isDone(self, state, control):
@@ -401,7 +401,7 @@ class TrackingEnv(gym.Env):
 
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-03-29-23-15-51'
+    ADP_dir = './Results_dir/2022-03-30-15-59-51'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -409,7 +409,7 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    env.policyTestReal(policy, 0, log_dir, isNoise=0.1)
-    env.policyTestVirtual(policy, 0, log_dir, isNoise=0.1)
+    env.policyTestReal(policy, 0, log_dir, isNoise=0.2)
+    env.policyTestVirtual(policy, 0, log_dir, isNoise=0.2)
 
 

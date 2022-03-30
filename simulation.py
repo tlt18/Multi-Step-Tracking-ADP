@@ -574,7 +574,7 @@ def animationPlot(state, refstate, xName, yName):
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-    ADP_dir = './Results_dir/2022-03-29-23-15-51'
+    ADP_dir = './Results_dir/2022-03-30-15-59-51'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
