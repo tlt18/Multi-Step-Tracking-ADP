@@ -77,16 +77,16 @@ class TrackingEnv(gym.Env):
         batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3], isNoise=1), -1) # 通过x生成参考点
         return batchState
 
-    def resetTest(self, batchSize):
+    def resetTest(self, batchSize, Noise = 1):
         # 状态空间 x = [u, v, omega, [xr, yr, phir], x, y, phi]
         batchState = torch.empty([batchSize, self.stateDim])
-        batchState[:, 0] = torch.normal(self.refV, self.refV/32, (batchSize, ))  # u 纵向
-        batchState[:, 1] = torch.normal(0, self.refV/50, (batchSize, ))  # v 横向
-        batchState[:, 2] = torch.normal(0, 0.01, (batchSize, ))  # omega
+        batchState[:, 0] = torch.normal(self.refV, self.refV/4 * Noise, (batchSize, ))  # u 纵向
+        batchState[:, 1] = torch.normal(0, self.refV/8 * Noise, (batchSize, ))  # v 横向
+        batchState[:, 2] = torch.normal(0, 0.06 * Noise, (batchSize, ))  # omega
         batchState[:, -3] = torch.rand(batchSize) * 2*np.pi/self.curveK # x
         refy, refphi = self.referenceCurve(batchState[:, -3])
-        batchState[:, -2] = torch.normal(refy, 0.005 * self.curveA)  # y
-        batchState[:, -1] = torch.normal(refphi, np.pi/100)  # phi
+        batchState[:, -2] = torch.normal(refy, 0.05 * Noise * self.curveA)  # y
+        batchState[:, -1] = torch.normal(refphi, np.pi/12 * Noise)  # phi
         batchState[:, 3:-3] = torch.stack(self.referenceFind(batchState[:, -3], isNoise=1), -1) # 通过x生成参考点
         return batchState
 
@@ -279,7 +279,7 @@ class TrackingEnv(gym.Env):
         if isNoise == 0:
             state  = self.initializeState(1, isNoise = 0) # 替代
         else: 
-            state  = self.resetTest(1)
+            state  = self.resetTest(1, Noise = isNoise)
             # state  = self.initializeState(1, isNoise = 1) # 替代
         count = 0
         x = torch.linspace(0, 30*np.pi, 1000)
@@ -311,6 +311,7 @@ class TrackingEnv(gym.Env):
 
         plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=2)
         plt.scatter(stateADP[:, 3], stateADP[:, 4], color='blue', s=2)
+        plt.legend(labels = ['ADP', 'reference'])
         plt.title('iteration:'+str(iteration))
         plt.savefig(log_dir + '/Real_iteration'+str(iteration)+'.png')
         plt.close()
@@ -322,7 +323,7 @@ class TrackingEnv(gym.Env):
         if isNoise == 0:
             state  = self.initializeState(1, isNoise = 0) # 替代
         else:
-            state  = self.resetTest(1) # 替代
+            state  = self.resetTest(1, Noise=isNoise) # 替代
             # state  = self.initializeState(1, isNoise = 1) # 替代
         count = 0
         # x = torch.linspace(0, 30*np.pi, 1000)
@@ -350,8 +351,9 @@ class TrackingEnv(gym.Env):
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:6], controlADP), 1)
         with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'ab') as f:
             np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir,a,delta")
-        plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=2)
-        plt.scatter(stateADP[:, 3], stateADP[:, 4], color='blue', s=2)
+        plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
+        plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
+        plt.legend(labels = ['ADP', 'reference'])
         plt.title('iteration:'+str(iteration))
         plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
         plt.close()
@@ -399,7 +401,7 @@ class TrackingEnv(gym.Env):
 
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-03-29-19-45-05'
+    ADP_dir = './Results_dir/2022-03-29-23-15-51'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -407,8 +409,7 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    env.policyTestReal(policy, 0, log_dir)
-    env.policyTestVirtual(policy, 0, log_dir)
-
+    env.policyTestReal(policy, 0, log_dir, isNoise=0.1)
+    env.policyTestVirtual(policy, 0, log_dir, isNoise=0.1)
 
 

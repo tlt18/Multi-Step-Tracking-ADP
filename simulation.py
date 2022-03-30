@@ -242,14 +242,13 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         y, _ = env.referenceCurve(x)
         plt.xlim(-5, 100)
         plt.ylim(-1.1, 1.1)
-        plt.plot(x, y, color='gray', linewidth=1)
         # MPC
-        plt.plot(stateMPCList[:,0], stateMPCList[:,1], linewidth=0.5, markersize=1, color='blue', marker='o', linestyle='dashed')
+        plt.scatter(stateMPCList[:,0], stateMPCList[:,1], s=2, c='blue', marker='o')
         # ADP
-        plt.plot(stateADPList[:,0], stateADPList[:,1], linewidth=0.5, markersize=1, color='red', marker='o')
+        plt.scatter(stateADPList[:,0], stateADPList[:,1], s=2, c='red', marker='*')
         # ref
-        plt.scatter(stateMPCList[:,-3], stateMPCList[:,-2], color='gray', s = 2)
-        plt.legend(labels=["reference", "MPC", "ADP"])
+        plt.scatter(stateMPCList[:,-3], stateMPCList[:,-2], c='gray', s = 2, marker='+')
+        plt.legend(['MPC', 'ADP', 'reference'])
         plt.title('y-x ADP v.s. MPC-'+str(mpcstep))
         plt.xlabel('x')
         plt.ylabel('y')
@@ -277,7 +276,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         plt.figure()
         data = relativeError[:, 1]
         plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
-        plt.xlim([0,0.1])
+        # plt.xlim([0,0.1])
         plt.xlabel('Relative Error')
         plt.ylabel('Frequency')
         plt.title('Relative Error of control delta')
@@ -387,7 +386,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
     count = 0
-    while(count < env.testStepVirtual):
+    while(count < max(MPCStep)):
         stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy())
         stateADPList = np.append(stateADPList, stateAdp[0, :6].numpy())
         relState = env.relStateCal(stateAdp)
@@ -408,24 +407,23 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
         print("----------------------Start Solving!----------------------")
         print("MPCStep: {}".format(mpcstep))
         tempstate = initialState[0].tolist() # 这里就取了一个，可以考虑从0开始取
-        stateMpc = tempstate[-3:] + tempstate[:3]
+        stateMpc = tempstate[-3:] + tempstate[:3] # (x,y,phi,u,v,omega)
         refStateMpc = tempstate[3:6]
         count = 0
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
-        while(count < env.testStepVirtual):
-            # MPC
-            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+        _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal=False)
+        while(count < mpcstep):
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
             stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
-            action = control[0].tolist()
+            action = control[count].tolist()
             reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
             stateMpc = env.vehicleDynamic(
                 stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
             refStateMpc = env.refDynamicVirtual(refStateMpc, MPCflag=1)
             rewardMPC = np.append(rewardMPC, reward)
-            controlMPCList = np.append(controlMPCList, control[0])
+            controlMPCList = np.append(controlMPCList, control[count])
             count += 1
         stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
         controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
@@ -438,18 +436,12 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
         # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStepVirtual, rewardMPC, rewardADP.item()))
         # y v.s. x
         plt.figure(mpcstep)
-        # x = torch.linspace(0, 30*np.pi, 1000)
-        # y, _ = env.referenceCurve(x)
-        # plt.xlim(-5, 100)
-        # plt.ylim(-1.1, 1.1)
-        # plt.plot(x, y, color='gray', linewidth=1)
-        # MPC
-        plt.plot(stateMPCList[:,0], stateMPCList[:,1], linewidth=0.5, markersize=1, color='blue', marker='o', linestyle='dashed')
+        plt.scatter(stateMPCList[:mpcstep,0], stateMPCList[:mpcstep,1], s=20, c='blue', marker='o')
         # ADP
-        plt.plot(stateADPList[:,0], stateADPList[:,1], linewidth=0.5, markersize=1, color='red', marker='o')
+        plt.scatter(stateADPList[:mpcstep,0], stateADPList[:mpcstep,1], s=20, c='red', marker='*')
         # ref
-        plt.scatter(stateMPCList[:,-3], stateMPCList[:,-2], color='gray', s = 2)
-        plt.legend(labels=["reference", "MPC", "ADP"])
+        plt.scatter(stateMPCList[:,-3], stateMPCList[:,-2], c='gray', s = 20, marker='+')
+        plt.legend(labels = ['MPC', 'ADP', 'reference'])
         plt.title('y-x ADP v.s. MPC-'+str(mpcstep))
         plt.xlabel('x')
         plt.ylabel('y')
@@ -460,7 +452,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
         # minAction = np.array(env.actionLow)
         maxAction = np.max(controlMPCList, 0)
         minAction = np.min(controlMPCList, 0)
-        relativeError = np.abs((controlADPList - controlMPCList)/(maxAction - minAction))
+        relativeError = np.abs((controlADPList[:mpcstep] - controlMPCList)/(maxAction - minAction))
         relativeErrorMax = np.max(relativeError, 0)
         relativeErrorMean = np.mean(relativeError, 0)
         for i in range(actionDim):
@@ -477,7 +469,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
         plt.figure()
         data = relativeError[:, 1]
         plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
-        plt.xlim([0,0.1])
+        # plt.xlim([0,0.1])
         plt.xlabel('Relative Error')
         plt.ylabel('Frequency')
         plt.title('Relative Error of control delta')
@@ -487,7 +479,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # x v.s. t
     MPCAll = [mpc[:,0] for mpc in stateMPCAll]
     ADP = stateADPList[:,0]
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'x [m]'
     title = 'x-t ADP v.s. MPC'
@@ -495,7 +487,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # x error v.s. t
     MPCAll = [stateMPCAll[i][:,0]-stateMPCAll[i][:,-3] for i in range(len(stateMPCAll))]
     ADP = stateADPList[:,0] - stateADPList[:,-3]
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'x error[m]'
     title = 'x error-t ADP v.s. MPC'
@@ -503,7 +495,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # y v.s. t
     MPCAll = [mpc[:,1] for mpc in stateMPCAll]
     ADP = stateADPList[:,1]
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'y [m]'
     title = 'y-t ADP v.s. MPC'
@@ -511,7 +503,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # y error v.s. t
     MPCAll = [stateMPCAll[i][:,1]-stateMPCAll[i][:,-2] for i in range(len(stateMPCAll))]
     ADP = stateADPList[:,1] - stateADPList[:,-2]
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'y error[m]'
     title = 'y error-t ADP v.s. MPC'
@@ -519,7 +511,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # phi v.s. t
     MPCAll = [mpc[:,2]* 180/np.pi for mpc in stateMPCAll] 
     ADP = stateADPList[:,2] * 180/np.pi
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'phi [°]'
     title = 'phi-t ADP v.s. MPC'
@@ -527,7 +519,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # a v.s. t
     MPCAll = [mpc[:,0] for mpc in controlMPCAll]
     ADP = controlADPList[:,0]
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'a [m/s^2]'
     title = 'a-t ADP v.s. MPC'
@@ -535,7 +527,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # delta v.s. t
     MPCAll = [mpc[:,1]* 180/np.pi for mpc in controlMPCAll]
     ADP = controlADPList[:,1] * 180/np.pi
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'delta [°]'
     title = 'delta-t ADP v.s. MPC'
@@ -543,7 +535,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
     # utility v.s. t
     MPCAll = rewardMPCAll
     ADP = rewardADP
-    xCoor = np.array(range(env.testStepVirtual)) * env.T
+    xCoor = np.array(range(max(MPCStep))) * env.T
     xName = 'Time [s]'
     yName = 'Utility '
     title = 'utility-t ADP v.s. MPC'
@@ -554,7 +546,7 @@ def comparePlot(MPCAll, ADP, xCoor, MPCStep, xName, yName, simu_dir, title):
     colorList = ['green', 'darkorange', 'blue', 'yellow']
     for i in range(len(MPCAll)):
         MPC = MPCAll[i]
-        plt.plot(xCoor, MPC, linewidth=2, color = colorList[i], linestyle = '-.')
+        plt.plot(xCoor[:MPC.shape[0]], MPC, linewidth=2, color = colorList[i], linestyle = '-.')
     plt.plot(xCoor, ADP, linewidth = 2, color='red',linestyle = '-')
     plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP'])
     plt.xlabel(xName)
@@ -582,7 +574,7 @@ def animationPlot(state, refstate, xName, yName):
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-    ADP_dir = './Results_dir/2022-03-29-19-45-05'
+    ADP_dir = './Results_dir/2022-03-29-23-15-51'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
@@ -602,9 +594,12 @@ if __name__ == '__main__':
 
     # 4. 真实时域ADP、MPC应用
     simu_dir = ADP_dir + '/simulationReal' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    simu_dir = ADP_dir + '/simulationReal'
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir)
 
-    simu_dir = ADP_dir + '/simulationVirtual' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    # 5. 虚拟时域ADP、MPC应用
+    # simu_dir = ADP_dir + '/simulationVirtual' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
     simulationVirtual(MPCStep, ADP_dir, simu_dir)

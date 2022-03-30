@@ -76,11 +76,11 @@ class Actor(nn.Module):
                 # init.xavier_uniform_(m.weight)
                 init.xavier_normal_(m.weight)
                 init.constant_(m.bias, 0.0)
-                
+
         for name, module in self.layers.named_children():
             if name in ['9']: # 将倒数第一层的权重设为0，网络正常训练
                 module.weight.data = module.weight.data * 0.0001
-                module.bias.data = torch.zeros_like(module.bias)
+                # module.bias.data = torch.zeros_like(module.bias)
 
 
 class Critic(nn.Module):
