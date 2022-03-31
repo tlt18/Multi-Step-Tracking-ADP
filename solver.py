@@ -45,11 +45,10 @@ class Solver():
 
         refState = SX.sym('refState',3)
         cost = pow(state[0] - refState[0], 2) +\
-            pow(state[1] - refState[1], 2) +\
+            4 * pow(state[1] - refState[1], 2) +\
+            10 * pow(state[2] - refState[2], 2) +\
             0.5 * pow(action[0], 2) +\
-            0.5 * pow(action[1], 2)
-        # cost = pow(state[0] - refState[0], 2) +\
-        #     4 * pow(state[1] - refState[1], 2) 
+            0.1 * pow(action[1], 2) # 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
     def MPCSolver(self, initState, refState, predictStep, isReal = True):

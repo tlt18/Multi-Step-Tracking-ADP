@@ -8,7 +8,7 @@ PI = 3.1415926
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.tensor([4, PI/9])
+        self._out_gain = torch.tensor([2, 0.15])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         #TODO: 选择更加合理的参数
@@ -95,7 +95,7 @@ class Critic(nn.Module):
             nn.Linear(256, 256),
             nn.ELU(),
             nn.Linear(256, outputSize),
-            nn.ReLU()
+            nn.Softplus()
         )
         # self._norm_matrix = 0.1 * \
         #     torch.tensor([2, 5, 10, 10], dtype=torch.float32)

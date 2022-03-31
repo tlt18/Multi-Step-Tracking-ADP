@@ -22,7 +22,7 @@ class vehicleDynamic():
         self.refV = 5
         self.curveK = 1/10
         self.curveA = 1
-        # self.curveK = 1/7.5
+        # self.curveK = 1/5
         # self.curveA = 2
         # 固定参考点向前看个数
         self.refStep = 4
@@ -39,7 +39,7 @@ class vehicleDynamic():
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
 
-        self.testStepReal = 150
+        self.testStepReal = 50
         self.testStepVirtual = 30
         self.renderStep = 100
         self.refNum = 1

@@ -44,8 +44,8 @@ class TrackingEnv(gym.Env):
         # TODO: 范围
         # 动作空间 u = [acc, delta]
         # 数值和Actor输出相关联
-        self.actionLow = [-4, -np.pi/9]
-        self.actionHigh = [4, np.pi/9]
+        self.actionLow = [-2, -0.15]
+        self.actionHigh = [2, 0.15]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
                        high=np.array(self.actionHigh), dtype=np.float32)
@@ -104,7 +104,7 @@ class TrackingEnv(gym.Env):
         initialState[:, 3:-3] = torch.stack(self.referenceFind(initialState[:, -3], isNoise = isNoise), -1)
         return initialState
 
-    def stepReal(self, state, control):
+    def stepReal(self, state, control, isRandomRef = 0):
         # 在真实时域中递推参考点，使用固定参考点的方式。
         batchSize = state.size(0)
         newState = torch.empty([batchSize, self.stateDim])
@@ -113,7 +113,10 @@ class TrackingEnv(gym.Env):
                                             state[:, 1], state[:, 2], control[:, 0], control[:, 1]), -1)
         newState[:, -3:] = temp[:, :3]
         newState[:, :3] = temp[:, 3:]
-        newState[:, 3:-3] = torch.stack(self.refDynamicReal(state[:, 3]), -1)
+        if isRandomRef == 0:
+            newState[:, 3:-3] = torch.stack(self.refDynamicReal(state[:, 3]), -1)
+        else:
+            newState[:, 3:-3] = torch.stack(self.refDynamicVirtual(state[:, 3:6], noise = isRandomRef), -1)
         reward = self.calReward(state, control)  # 使用当前状态计算
         done = self.isDone(newState, control)  # 考虑一下用state还是newState
         return newState, reward, done
@@ -137,6 +140,7 @@ class TrackingEnv(gym.Env):
             reward = \
                 torch.pow(state[:, -3] - state[:, 3], 2) +\
                 4 * torch.pow(state[:, -2] - state[:, 4], 2) +\
+                10 * torch.pow(state[:, -1] - state[:, 5], 2) +\
                 0.5 * torch.pow(control[:, 0], 2) +\
                 0.1 * torch.pow(control[:, 1], 2)
                 # 0.5 * torch.pow(control[:, 0]/self.actionHigh[0], 2) +\
@@ -145,6 +149,7 @@ class TrackingEnv(gym.Env):
             reward = \
                 pow(state[-3] - state[3], 2) +\
                 4 * pow(state[-2] - state[4], 2) +\
+                10 * pow(state[-1] - state[5], 2) +\
                 0.5 * pow(control[0], 2) +\
                 0.1 * pow(control[1], 2)
         return reward
@@ -182,13 +187,17 @@ class TrackingEnv(gym.Env):
                 / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
         return [x_1, y_1, phi_1, u_1, v_1, omega_1]
 
-    def refDynamicVirtual(self, refState, MPCflag = 0):
-        # 注意这里的输出输入都是N个参考点
+    def refDynamicVirtual(self, refState, MPCflag = 0, noise=0):
+        # Input: N steps ref point 
+        # Output: N steps ref point
         if MPCflag == 0:
             refNextx = refState[:, 0] + self.refV * self.T * torch.cos(refState[:, 2])
             refNexty = refState[:, 1] + self.refV * self.T * torch.sin(refState[:, 2])
-            refNextphi = refState[:, 2]
+            # refNextphi = torch.normal(refState[:, 2], 0.005 * noise)
+            # refNextphi = refState[:, 2] + (2 * torch.rand(refState[:, 2].shape) - 1) * 0.005 * noise
+            refNextphi = refState[:, 2] + torch.rand(refState[:, 2].shape) * 0.005 * noise
         else:
+            # TODO: add noise
             refNextx = refState[0] + self.refV * self.T * cos(refState[2])
             refNexty = refState[1] + self.refV * self.T * sin(refState[2])
             refNextphi = refState[2]
@@ -228,7 +237,7 @@ class TrackingEnv(gym.Env):
                 refNexty, refNextphi = self.referenceCurve(refNextx, MPCflag)
         return [refNextx, refNexty, refNextphi]
 
-
+        
     def referenceFind(self, x, isNoise = 0, MPCflag = 0):
         # if MPCflag == 0:
         #     n = torch.floor(x/(self.T * self.refV)) + 1
@@ -270,7 +279,7 @@ class TrackingEnv(gym.Env):
             relState[:, relIndex + 2] = tempState[:, tempIndex + 2]
         return relState
 
-    def policyTestReal(self, policy, iteration, log_dir, isNoise = 0):
+    def policyTestReal(self, policy, iteration, log_dir, isNoise = 0, isRandomRef = 0):
         plt.figure(iteration)
         state = torch.empty([1, self.stateDim])
         state[:, :3] = torch.tensor(self.initState)[3:]
@@ -297,7 +306,7 @@ class TrackingEnv(gym.Env):
             control = policy(refState).detach()
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
-            state, reward, done = self.stepReal(state, control)
+            state, reward, done = self.stepReal(state, control, isRandomRef=isRandomRef)
             rewardSum += min(reward.item(), 50/self.testStepReal)
             # plt.scatter(state[:, -3], state[:, -2], color='red', s=2)
             # plt.scatter(state[:, 3], state[:, 4], color='blue', s=2)
@@ -398,10 +407,8 @@ class TrackingEnv(gym.Env):
         plt.savefig(log_dir + '/reward.png')
         plt.close()
 
-
-
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-03-30-15-59-51'
+    ADP_dir = './Results_dir/2022-03-30-19-40-49'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -409,7 +416,9 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    env.policyTestReal(policy, 0, log_dir, isNoise=0.2)
-    env.policyTestVirtual(policy, 0, log_dir, isNoise=0.2)
+    noise = 0
+    randomRef = 5
+    env.policyTestReal(policy, 0, log_dir, isNoise=noise, isRandomRef = randomRef)
+    env.policyTestVirtual(policy, 0, log_dir, isNoise=noise)
 
 

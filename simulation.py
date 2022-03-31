@@ -259,7 +259,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         # minAction = np.array(env.actionLow)
         maxAction = np.max(controlMPCList, 0)
         minAction = np.min(controlMPCList, 0)
-        relativeError = np.abs((controlADPList - controlMPCList)/(maxAction - minAction))
+        relativeError = np.abs((controlADPList - controlMPCList)/(maxAction - minAction + 1e-3))
         relativeErrorMax = np.max(relativeError, 0)
         relativeErrorMean = np.mean(relativeError, 0)
         for i in range(actionDim):
@@ -452,7 +452,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir):
         # minAction = np.array(env.actionLow)
         maxAction = np.max(controlMPCList, 0)
         minAction = np.min(controlMPCList, 0)
-        relativeError = np.abs((controlADPList[:mpcstep] - controlMPCList)/(maxAction - minAction))
+        relativeError = np.abs((controlADPList[:mpcstep] - controlMPCList)/(maxAction - minAction + 1e-3))
         relativeErrorMax = np.max(relativeError, 0)
         relativeErrorMean = np.mean(relativeError, 0)
         for i in range(actionDim):
@@ -574,7 +574,8 @@ def animationPlot(state, refstate, xName, yName):
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-    ADP_dir = './Results_dir/2022-03-30-15-59-51'
+    # 检查一下reward是否一样
+    ADP_dir = './Results_dir/2022-03-30-19-40-49'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
