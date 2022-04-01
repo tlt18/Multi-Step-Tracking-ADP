@@ -59,9 +59,9 @@ if isTrain:
             print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:8f}, policy lr: {:8f}".format(
                 iterarion, train.lossValue[-1], train.lossPolicy[-1], value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
         if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
-            rewardSum = env.policyTestReal(policy, iterarion, log_dir+'/train')
-            print("Accumulated Reward in real time is {:.4f}".format(rewardSum))
-            rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train')
+            env.policyTestReal(policy, iterarion, log_dir+'/train')
+            env.policyTestVirtual(policy, iterarion, log_dir+'/train')
+            rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 0.5, isPlot = False)
             print("Accumulated Reward in virtual time is {:.4f}".format(rewardSum))
             timeDelta = time.time() - timeBegin
             h = timeDelta//3600
@@ -73,6 +73,6 @@ if isTrain:
             env.plotReward(rewardList, log_dir+'/train', config.iterationSave)
             value.saveParameters(log_dir)
             policy.saveParameters(log_dir)
-            # train.saveDate(log_dir+'/train')
+            train.saveDate(log_dir+'/train')
             # env.policyRender(policy)
         iterarion += 1

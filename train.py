@@ -15,7 +15,8 @@ class Train():
         self.stepForwardPEV = config.stepForwardPEV
         self.batchSize = config.batchSize
         self.gammar = config.gammar
-        self.lifeMax = torch.rand(self.batchSize) * config.lifeMax
+        self.lifeMax = config.lifeMax
+        self.statelifeMax = torch.rand(self.batchSize) * config.lifeMax
         self.batchData = torch.empty([self.batchSize, self.env.stateDim])
         self.batchDataLife = torch.zeros(self.batchSize)
         self.accumulateReward = None
@@ -23,7 +24,6 @@ class Train():
         self.doneForward = None
         self.gammarForward = 1
         self.reset()
-
 
     def reset(self):
         self.batchData = self.env.resetRandom(self.batchSize)
@@ -36,8 +36,11 @@ class Train():
         if sum(done==1) >0 :
             self.batchData[done==1] = self.env.resetRandom(sum(done==1))
             self.batchDataLife[done==1] = 0
-        self.batchData[self.batchDataLife > self.lifeMax] =self.env.resetRandom(sum(self.batchDataLife > self.lifeMax))
-        self.batchDataLife[self.batchDataLife > self.lifeMax] = 0
+        if sum(self.batchDataLife > self.statelifeMax) > 0:
+            temp = (self.batchDataLife > self.statelifeMax)
+            self.batchData[temp] =self.env.resetRandom(sum(temp))
+            self.batchDataLife[temp] = 0
+            self.statelifeMax[temp] = torch.rand(sum(temp)) * self.lifeMax
 
     def policyEvaluate(self, policy, value):
         relState = self.env.relStateCal(self.batchData)
@@ -92,12 +95,14 @@ class Train():
     def saveDate(self, log_dir):
         with open(log_dir + "/loss.csv", 'wb') as f:
             np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
+
         plt.figure()
         plt.plot(range(len(self.lossValue)), self.lossValue)
         plt.xlabel('iteration')
         plt.ylabel('Value Loss')
         plt.savefig(log_dir + '/value_loss.png')
         plt.close()
+
         plt.figure()
         plt.plot(range(len(self.lossPolicy)), self.lossPolicy)
         plt.xlabel('iteration')

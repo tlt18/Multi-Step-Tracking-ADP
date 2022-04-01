@@ -41,6 +41,7 @@ class vehicleDynamic():
 
         self.testStepReal = 100
         self.testStepVirtual = 30
+        self.testSampleNum = 60
         self.renderStep = 100
         self.refNum = 2
 

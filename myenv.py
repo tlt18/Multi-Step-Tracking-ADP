@@ -37,6 +37,7 @@ class TrackingEnv(gym.Env):
         self.initState = config.initState
         self.testStepReal = config.testStepReal
         self.testStepVirtual = config.testStepVirtual
+        self.testSampleNum = config.testSampleNum
         self.renderStep = config.renderStep
 
         # action space
@@ -306,8 +307,11 @@ class TrackingEnv(gym.Env):
         plt.close()
         return rewardSum
 
-    def policyTestVirtual(self, policy, iteration, log_dir, noise = 0):
-        state = self.resetRandom(1, noise=noise)
+    def policyTestVirtual(self, policy, iteration, log_dir, noise = 0, isPlot=True):
+        if isPlot == True:
+            state = self.resetRandom(1, noise=noise)
+        else:
+            state = self.resetRandom(self.testSampleNum, noise=noise)
         count = 0
         stateADP = np.empty(0)
         controlADP = np.empty(0)
@@ -318,21 +322,22 @@ class TrackingEnv(gym.Env):
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
             state, reward, done = self.stepVirtual(state, control)
-            rewardSum += min(reward.item(), 100000/self.testStepVirtual)
+            rewardSum += torch.mean(torch.min(reward,torch.tensor(50))).item()
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 2))
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:-3], controlADP), 1)
-        with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'ab') as f:
-            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
-        plt.figure()
-        plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
-        plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
-        plt.legend(labels = ['ADP', 'reference'])
-        plt.axis('equal')
-        plt.title('iteration:'+str(iteration))
-        plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
-        plt.close()
+        if isPlot == True:
+            with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'ab') as f:
+                np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
+            plt.figure()
+            plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
+            plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
+            plt.legend(labels = ['ADP', 'reference'])
+            plt.axis('equal')
+            plt.title('iteration:'+str(iteration))
+            plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
+            plt.close()
         return rewardSum
 
 
@@ -358,12 +363,12 @@ if __name__ == '__main__':
     env.curveK = 1/10
     env.curveA = 5
     env.policyTestReal(policy, 0, log_dir, curveType = 'sine')
-    # env.policyTestVirtual(policy, 0, log_dir, noise=noise)
+    env.policyTestVirtual(policy, 0, log_dir, noise=noise)
 
     # value = Critic(env.relstateDim, 1)
     # value.loadParameters(ADP_dir)
-    # state = env.initializeState(1)
-    # refState = env.relStateCal(state) + torch.tensor([[0, 0, 0, -0.5, 0, 0]])
+    # state = env.resetRandom(1, noise=0)
+    # refState = env.relStateCal(state) + torch.tensor([[-0., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
     # print('refState is {}, value is {}'.format(refState[0].tolist(), value(refState)[0].tolist()))
 
 
