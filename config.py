@@ -6,26 +6,26 @@ class trainConfig():
         self.iterationPrint = 100
         self.iterationSave = 1000
         self.lrPolicy = 1e-3
-        # self.lrPolicy = 1e-5
         self.lrValue = 1e-2
+        # self.lrPolicy = 1e-5
         # self.lrValue = 1e-4
-        self.stepForwardPEV = 5
-        self.stepForwardPIM = 4
-        self.gammar = 0.8
-        self.lifeMax = 10
+        # need to match
+        self.stepForwardPEV = 10
+        self.gammar = 0.9
+
+        self.lifeMax = 15
         self.batchSize = 256
-        self.updVirtual = True
+
 
 class vehicleDynamic():
     def __init__(self):
         # 参考速度
         self.refV = 5
         self.curveK = 1/10
-        self.curveA = 1
+        self.curveA = 3
         # self.curveK = 1/5
         # self.curveA = 2
-        # 固定参考点向前看个数
-        self.refStep = 4
+
         # 车辆参数
         # TODO: 参数是否合理？
         self.T = 0.1  # 时间间隔
@@ -39,10 +39,10 @@ class vehicleDynamic():
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
 
-        self.testStepReal = 50
+        self.testStepReal = 100
         self.testStepVirtual = 30
         self.renderStep = 100
-        self.refNum = 1
+        self.refNum = 2
 
 class MPCConfig():
     def __init__(self):

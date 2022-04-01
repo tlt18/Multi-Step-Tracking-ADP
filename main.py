@@ -17,9 +17,10 @@ isTrain = True
 
 # parameters setting
 config = trainConfig()
-
 env = TrackingEnv()
 env.seed(0)
+
+use_gpu = torch.cuda.is_available()
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
 policy = Actor(relstateDim, actionDim, lr=config.lrPolicy)
@@ -45,6 +46,7 @@ if isTrain:
     train = Train(env)
     iterarion = 0
     lossListValue = 0
+    timeBegin = time.time()
     while iterarion < config.iterationMax:
         # PEV
         train.policyEvaluate(policy, value)
@@ -61,6 +63,11 @@ if isTrain:
             print("Accumulated Reward in real time is {:.4f}".format(rewardSum))
             rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train')
             print("Accumulated Reward in virtual time is {:.4f}".format(rewardSum))
+            timeDelta = time.time() - timeBegin
+            h = timeDelta//3600
+            mi = (timeDelta - h * 3600)//60
+            sec = timeDelta % 60
+            print("Time consuming: {:.0f}h {:.0f}min {:.0f}sec".format(h, mi, sec))
             if np.isnan(rewardSum)==0:
                 rewardList.append(rewardSum)
             env.plotReward(rewardList, log_dir+'/train', config.iterationSave)
