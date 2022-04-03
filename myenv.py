@@ -118,29 +118,35 @@ class TrackingEnv(gym.Env):
         return refState
 
 
-    def resetSpecificCurve(self, stateNum, curveType = 'sine'):
+    def resetSpecificCurve(self, stateNum, curveType = 'sine', noise = 0):
         newState = torch.empty([stateNum, self.stateDim])
         newState[:, 0] = torch.ones(stateNum) * self.refV # u
         newState[:, 1] = torch.zeros(stateNum) # v
         newState[:, 2] = torch.zeros(stateNum) # omega
-        newState[:, -3] = torch.rand(stateNum) *  2*np.pi/self.curveK # x
+        if curveType == 'sine':
+            newState[:, -3] = torch.rand(stateNum) *  2*np.pi/self.curveK # x
+        else :
+            newState[:, -3] = torch.zeros(stateNum)
         newState[:, -2:] = torch.stack(self.referenceCurve(newState[:, -3], curveType = curveType), -1)
-        
-        newState[:, 3:6] = newState[:, -3:] # input of the function
-        maxSection = 5
-        for i in range(1, self.refNum):
-            refNextx = newState[:, 3 * i].clone()
-            refNexty = newState[:, 3 * i + 1].clone()
-            refNextphi = newState[:, 3 * i + 2].clone()
-            for _ in range(maxSection):
-                refNextx = refNextx + self.refV * self.T / maxSection * torch.cos(refNextphi)
-                refNexty, refNextphi = self.referenceCurve(refNextx, curveType = curveType)
-            newState[:, 3 * i + 3] = refNextx
-            newState[:, 3 * i + 4] = refNexty
-            newState[:, 3 * i + 5] = refNextphi
+
+        if curveType == 'random':
+            newState[:, 3:-3] = self.referenceFind(newState[:, -3:])
+        else:
+            newState[:, 3:6] = newState[:, -3:] # input of the function
+            maxSection = 5
+            for i in range(1, self.refNum):
+                refNextx = newState[:, 3 * i].clone()
+                refNexty = newState[:, 3 * i + 1].clone()
+                refNextphi = newState[:, 3 * i + 2].clone()
+                for _ in range(maxSection):
+                    refNextx = refNextx + self.refV * self.T / maxSection * torch.cos(refNextphi)
+                    refNexty, refNextphi = self.referenceCurve(refNextx, curveType = curveType)
+                newState[:, 3 * i + 3] = refNextx
+                newState[:, 3 * i + 4] = refNexty
+                newState[:, 3 * i + 5] = refNextphi
         return newState
 
-    def stepReal(self, state, control, curveType = 'sine'):
+    def stepReal(self, state, control, curveType = 'sine', noise = 0):
         # You must initialize all state for specific curce!
         # step in real time
         newState = torch.empty_like(state)
@@ -150,7 +156,7 @@ class TrackingEnv(gym.Env):
         newState[:, -3:] = temp[:, :3] # x, y, phi
         newState[:, :3] = temp[:, 3:] # u, v, omega
         # TODO: you can add some specific trajectory here
-        newState[:, 3:-3] = self.refDynamicReal(state[:, 3:-3], curveType = curveType)
+        newState[:, 3:-3] = self.refDynamicReal(state[:, 3:-3], curveType = curveType, noise = noise)
         reward = self.calReward(state, control)  # calculate using current state
         done = self.isDone(newState, control)
         return newState, reward, done
@@ -170,7 +176,7 @@ class TrackingEnv(gym.Env):
 
 
     def calReward(self, state, control, MPCflag = 0):
-        # TODO: 设计reward，考虑变成相反数
+        # TODO: design reward
         if MPCflag == 0 :
             reward = \
                 4 * torch.pow(state[:, -3] - state[:, 3], 2) +\
@@ -230,6 +236,9 @@ class TrackingEnv(gym.Env):
             newRefState = torch.empty_like(refState)
             newRefState[:, :-3] = refState[:, 3:]
             refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            # TODO: delet it
+            refDeltax += torch.rand(refState.shape[0])
+
             newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refState[:, -1])
             newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refState[:, -1])
             newRefState[:, -1] = refState[:, -1]
@@ -237,19 +246,26 @@ class TrackingEnv(gym.Env):
         return newRefState
 
 
-    def refDynamicReal(self, refState, MPCflag = 0, curveType = 'sine'):
+    def refDynamicReal(self, refState, MPCflag = 0, curveType = 'sine', noise = 0):
         maxSection = 5
         if MPCflag == 0:
             newRefState = torch.empty_like(refState) # [[xr, yr, phir]]
             newRefState[:, :-3] = refState[:, 3:]
             # TODO: add noise to refDeltax
             refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
-            refNextx = refState[:, -3].clone()
-            refNexty, refNextphi = self.referenceCurve(refNextx, MPCflag, curveType = curveType)
-            for _ in range(maxSection):
-                refNextx = refNextx + refDeltax / maxSection * torch.cos(refNextphi)
+            if curveType == 'random':
+                deltaphi = torch.rand(refState.size(0)) * 0.05 * noise
+                newRefState[:, -1] = refState[:, -1] + deltaphi
+                refphi = refState[:, -1] + deltaphi * torch.rand(refState.size(0)) * 0
+                newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refphi)
+                newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refphi)
+            else:
+                refNextx = refState[:, -3].clone()
                 refNexty, refNextphi = self.referenceCurve(refNextx, MPCflag, curveType = curveType)
-            newRefState[:, -3], newRefState[:, -2], newRefState[:, -1] = refNextx, refNexty, refNextphi
+                for _ in range(maxSection):
+                    refNextx = refNextx + refDeltax / maxSection * torch.cos(refNextphi)
+                    refNexty, refNextphi = self.referenceCurve(refNextx, MPCflag, curveType = curveType)
+                newRefState[:, -3], newRefState[:, -2], newRefState[:, -1] = refNextx, refNexty, refNextphi
         # TODO: MPC version
         return newRefState
         
@@ -258,9 +274,18 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0:
             if curveType == 'sine':
                 return self.curveA * torch.sin(self.curveK * x), torch.atan(self.curveA * self.curveK * torch.cos(self.curveK * x))
+            elif curveType == 'log':
+                return self.curveA * torch.log(self.curveK * x + 1), torch.atan(self.curveA / ( x + 1 / self.curveK))
+            elif curveType == 'random':
+                return torch.zeros_like(x), torch.zeros_like(x)
+
         else:
             if curveType == 'sine':
                 return self.curveA * sin(self.curveK * x), atan(self.curveA * self.curveK * cos(self.curveK * x))
+            elif curveType == 'log':
+                return self.curveA * log(self.curveK * x + 1), atan(self.curveA / ( x + 1 / self.curveK))
+            elif curveType == 'random':
+                return 0, 0
 
 
     def relStateCal(self, state):
@@ -278,28 +303,31 @@ class TrackingEnv(gym.Env):
         return relState
 
 
-    def policyTestReal(self, policy, iteration, log_dir, curveType = 'sine'):
-        state  = self.resetSpecificCurve(1, curveType = 'sine')
+    def policyTestReal(self, policy, iteration, log_dir, curveType = 'sine', noise = 0):
+        state  = self.resetSpecificCurve(1, curveType = curveType)
         count = 0
         stateADP = np.empty(0)
         controlADP = np.empty(0)
         rewardSum = 0
+        reversalList = [self.testStepReal//3]
         while(count < self.testStepReal):
             refState = self.relStateCal(state)
             control = policy(refState).detach()
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
-            state, reward, done = self.stepReal(state, control, curveType=curveType)
+            if count in reversalList:
+                noise = - noise
+            state, reward, done = self.stepReal(state, control, curveType=curveType, noise = noise)
             rewardSum += min(reward.item(), 100000/self.testStepReal)
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 2))
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:-3], controlADP), 1) # [x, y, phi, u, v, omega, [xr, yr, phir], a, delta]
-        with open(log_dir + "/Real_state"+str(iteration)+".csv", 'ab') as f:
+        with open(log_dir + "/Real_state"+str(iteration)+".csv", 'wb') as f:
             np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
         plt.figure()
-        plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=2)
-        plt.scatter(stateADP[:, 3], stateADP[:, 4], color='gray', s=2)
+        plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=0.5)
+        plt.scatter(stateADP[:, 3], stateADP[:, 4], color='gray', s=0.5)
         plt.legend(labels = ['ADP', 'reference'])
         plt.axis('equal')
         plt.title('iteration:'+str(iteration))
@@ -328,7 +356,7 @@ class TrackingEnv(gym.Env):
         controlADP = np.reshape(controlADP, (-1, 2))
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:-3], controlADP), 1)
         if isPlot == True:
-            with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'ab') as f:
+            with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'wb') as f:
                 np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
             plt.figure()
             plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
@@ -350,25 +378,25 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-01-21-51-06'
+    ADP_dir = './Results_dir/2022-04-01-23-21-34'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
     # env.seed(0)
+
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-
     noise = 0.2
-    env.curveK = 1/10
-    env.curveA = 5
-    env.policyTestReal(policy, 0, log_dir, curveType = 'sine')
+    env.curveK = 2
+    env.curveA = 8
+    env.policyTestReal(policy, 0, log_dir, curveType = 'random', noise = noise)
     env.policyTestVirtual(policy, 0, log_dir, noise=noise)
 
     # value = Critic(env.relstateDim, 1)
     # value.loadParameters(ADP_dir)
     # state = env.resetRandom(1, noise=0)
-    # refState = env.relStateCal(state) + torch.tensor([[-0., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+    # refState = env.relStateCal(state) + torch.tensor([[-0.2, 0, 0, 0.0, 0.0, 0, 0, 0, 0, 0, 0]])
     # print('refState is {}, value is {}'.format(refState[0].tolist(), value(refState)[0].tolist()))
 
 

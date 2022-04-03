@@ -93,6 +93,7 @@ class Train():
         self.lossIteraPolicy = np.empty(0)
 
     def saveDate(self, log_dir):
+        # TODO: loss 数量不一样
         with open(log_dir + "/loss.csv", 'wb') as f:
             np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
 
@@ -100,12 +101,12 @@ class Train():
         plt.plot(range(len(self.lossValue)), self.lossValue)
         plt.xlabel('iteration')
         plt.ylabel('Value Loss')
-        plt.savefig(log_dir + '/value_loss.png')
+        plt.savefig(log_dir + '/loss_value.png')
         plt.close()
 
         plt.figure()
         plt.plot(range(len(self.lossPolicy)), self.lossPolicy)
         plt.xlabel('iteration')
         plt.ylabel('Policy Loss')
-        plt.savefig(log_dir + '/policy_loss.png')
+        plt.savefig(log_dir + '/loss_policy.png')
         plt.close()
