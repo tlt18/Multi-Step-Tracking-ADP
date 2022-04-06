@@ -236,9 +236,6 @@ class TrackingEnv(gym.Env):
             newRefState = torch.empty_like(refState)
             newRefState[:, :-3] = refState[:, 3:]
             refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
-            # TODO: delet it
-            refDeltax += torch.rand(refState.shape[0])
-
             newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refState[:, -1])
             newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refState[:, -1])
             newRefState[:, -1] = refState[:, -1]
@@ -254,7 +251,8 @@ class TrackingEnv(gym.Env):
             # TODO: add noise to refDeltax
             refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
             if curveType == 'random':
-                deltaphi = torch.rand(refState.size(0)) * 0.05 * noise
+                # deltaphi = torch.rand(refState.size(0)) * 0.05 * noise
+                deltaphi = 0.05 * noise
                 newRefState[:, -1] = refState[:, -1] + deltaphi
                 refphi = refState[:, -1] + deltaphi * torch.rand(refState.size(0)) * 0
                 newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refphi)
@@ -309,15 +307,20 @@ class TrackingEnv(gym.Env):
         stateADP = np.empty(0)
         controlADP = np.empty(0)
         rewardSum = 0
-        reversalList = [self.testStepReal//3]
+
+        reversalList = [40, self.testStepReal-40]
+
         while(count < self.testStepReal):
             refState = self.relStateCal(state)
             control = policy(refState).detach()
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
-            if count in reversalList:
-                noise = - noise
-            state, reward, done = self.stepReal(state, control, curveType=curveType, noise = noise)
+
+            if count < reversalList[0] or count > reversalList[1]:
+                state, reward, done = self.stepReal(state, control, curveType=curveType, noise = 0)
+            else:
+                state, reward, done = self.stepReal(state, control, curveType=curveType, noise = noise)
+
             rewardSum += min(reward.item(), 100000/self.testStepReal)
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
@@ -328,6 +331,8 @@ class TrackingEnv(gym.Env):
         plt.figure()
         plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=0.5)
         plt.scatter(stateADP[:, 3], stateADP[:, 4], color='gray', s=0.5)
+        # plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
+        # plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
         plt.legend(labels = ['ADP', 'reference'])
         plt.axis('equal')
         plt.title('iteration:'+str(iteration))
@@ -387,11 +392,11 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    noise = 0.2
+    noise = 0.5
     env.curveK = 2
     env.curveA = 8
-    env.policyTestReal(policy, 0, log_dir, curveType = 'random', noise = noise)
-    env.policyTestVirtual(policy, 0, log_dir, noise=noise)
+    env.policyTestReal(policy, 4, log_dir, curveType = 'random', noise = noise)
+    env.policyTestVirtual(policy, 0, log_dir, noise=0)
 
     # value = Critic(env.relstateDim, 1)
     # value.loadParameters(ADP_dir)

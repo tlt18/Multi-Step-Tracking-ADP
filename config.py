@@ -39,7 +39,7 @@ class vehicleDynamic():
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
 
-        self.testStepReal = 300
+        self.testStepReal = 205
         self.testStepVirtual = 40
         self.testSampleNum = 100
         self.renderStep = 100
