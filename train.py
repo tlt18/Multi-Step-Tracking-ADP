@@ -33,7 +33,7 @@ class Train():
         control = policy(relState).detach()
         self.batchData, _, done = self.env.stepVirtual(self.batchData, control)
         self.batchDataLife += 1
-        if sum(done==1) >0 :
+        if sum(done==True) >0 :
             self.batchData[done==1] = self.env.resetRandom(sum(done==1))
             self.batchDataLife[done==1] = 0
         if sum(self.batchDataLife > self.statelifeMax) > 0:
@@ -98,15 +98,13 @@ class Train():
             np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
 
         plt.figure()
-        plt.plot(range(len(self.lossValue)), self.lossValue)
-        plt.xlabel('iteration')
-        plt.ylabel('Value Loss')
-        plt.savefig(log_dir + '/loss_value.png')
-        plt.close()
-
-        plt.figure()
-        plt.plot(range(len(self.lossPolicy)), self.lossPolicy)
-        plt.xlabel('iteration')
-        plt.ylabel('Policy Loss')
-        plt.savefig(log_dir + '/loss_policy.png')
+        fig,ax = plt.subplots()
+        ax.plot(range(len(self.lossValue)), self.lossValue, color = 'blue')
+        ax.set_xlabel('iteration')
+        ax.set_ylabel('Value Loss')
+        ax2 = ax.twinx()
+        ax2.plot(range(len(self.lossPolicy)), self.lossPolicy, color = 'orange')
+        ax2.set_ylabel('Policy Loss')
+        plt.legend(labels = ['Value Loss', 'Policy Loss'])
+        plt.savefig(log_dir + '/loss.png')
         plt.close()

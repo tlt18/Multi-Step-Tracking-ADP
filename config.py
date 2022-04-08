@@ -2,7 +2,7 @@ import math
 
 class trainConfig():
     def __init__(self):
-        self.iterationMax = 50000
+        self.iterationMax = 100000
         self.iterationPrint = 100
         self.iterationSave = 1000
         self.lrPolicy = 1e-3
@@ -22,7 +22,7 @@ class vehicleDynamic():
         # 参考速度
         self.refV = 5
         self.curveK = 1/10
-        self.curveA = 3
+        self.curveA = 2
         # self.curveK = 1/5
         # self.curveA = 2
 
@@ -39,15 +39,15 @@ class vehicleDynamic():
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
 
-        self.testStepReal = 205
+        self.testStepReal = 150
         self.testStepVirtual = 40
         self.testSampleNum = 100
         self.renderStep = 100
-        self.refNum = 2
+        self.refNum = 1
 
 class MPCConfig():
     def __init__(self):
-        self.MPCStep = [5, 10, 20]
+        self.MPCStep = [10, 20, 40]
         config = trainConfig()
         self.gammar = config.gammar
         # self.MPCStep = [205, 210, 220, 240]

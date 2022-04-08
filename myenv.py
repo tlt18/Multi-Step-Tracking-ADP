@@ -47,7 +47,7 @@ class TrackingEnv(gym.Env):
         self.actionHigh = [2, 0.15]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
-                       high=np.array(self.actionHigh), dtype=np.float32)
+                       high=np.array(self.actionHigh), dtype=np.float64)
 
         # state space
         # x = [u, v, omega, x, y, phi]
@@ -65,8 +65,8 @@ class TrackingEnv(gym.Env):
         torch.manual_seed(s)
 
 
-    def resetRandom(self, stateNum, noise = 1):
-        # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
+    def resetRandom(self, stateNum, noise = 1, MPCflag = 0):
+        # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]]
         newState = torch.empty([stateNum, self.stateDim])
 
         # u: [self.refV/2, self.refV*3/2]
@@ -77,8 +77,8 @@ class TrackingEnv(gym.Env):
         newState[:, 1] = (torch.rand(stateNum) - 1/2) * self.refV / 4 * noise
         # newState[:, 1] = torch.normal(0, self.refV/16, (stateNum, ))
 
-        # omega: [-0.5, 0.5]
-        newState[:, 2] = (torch.rand(stateNum) - 1/2) * 1 * noise
+        # omega: [-1, 1]
+        newState[:, 2] = (torch.rand(stateNum) - 1/2) * 2 * noise
         # newState[:, 2] = torch.normal(0, 0.25, (stateNum, ))
 
         # x, y, phi
@@ -87,8 +87,12 @@ class TrackingEnv(gym.Env):
 
         # [xr, yr, phir]
         newState[:, 3:-3] = self.referenceFind(newState[:, -3:], noise=noise)
-        return newState
 
+        if MPCflag == 0:
+            return newState
+        else:
+            return newState[0].tolist()
+         
 
     def referenceFind(self, state, noise = 0, MPCflag = 0):
         # input: state = [x, y, phi]
@@ -102,19 +106,20 @@ class TrackingEnv(gym.Env):
             # refState[:, 0] = torch.normal(state[:, 0], self.refV * self.T / 4 * noise)
             # refState[:, 1] = torch.normal(state[:, 1], self.refV * self.T / 4 * noise)
 
-            # +-0.05
-            refState[:, 2] = state[:, 2] + (torch.rand(state.size(0)) - 1/2) * 0.05 * 2 * noise
+            # +-0.1
+            refState[:, 2] = state[:, 2] + (torch.rand(state.size(0)) - 1/2) * 0.1 * 2 * noise
             # refState[:, 2] = torch.normal(state[:, 2], 0.05 / 2 * noise)
 
             for i in range(1, self.refNum):
                 # index of [x, y, phi]: 3 * i, 3 * i + 1, 3 * i + 2
                 randL = self.refV * self.T + (torch.rand(state.size(0)) - 1/2 ) * self.refV * self.T * noise
-                deltaphi = (torch.rand(state.size(0)) - 1/2) * 0.05 * 2 * noise
+                deltaphi = (torch.rand(state.size(0)) - 1/2) * 0.1 * 2 * noise
                 refState[:, 3 * i + 2] = refState[:, 3 * i - 1] + deltaphi
                 refphi = refState[:, 3 * i - 1] + deltaphi * torch.rand(state.size(0))
                 refState[:, 3 * i] = refState[:, 3 * i - 3] + torch.cos(refphi) * randL
                 refState[:, 3 * i + 1] = refState[:, 3 * i - 2] + torch.sin(refphi) * randL
-        # TODO:MPC version
+        else:
+            return self.referenceFind(torch.tensor([state]), noise=noise, MPCflag=0)[0].tolist()
         return refState
 
 
@@ -195,7 +200,7 @@ class TrackingEnv(gym.Env):
 
 
     def isDone(self, state, control):
-        # TODO: 设计一下
+        # TODO: design condition of done
         batchSize = state.size(0)
         done = torch.tensor([False for i in range(batchSize)])
         done[(torch.pow(state[:, -3]-state[:, 3], 2) + torch.pow(state[:, -2]-state[:, 4], 2) > 4)] = True
@@ -235,11 +240,14 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0:
             newRefState = torch.empty_like(refState)
             newRefState[:, :-3] = refState[:, 3:]
-            refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            # TODO: add noise to refDeltx
+            # refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            refDeltax = self.T * self.refV
             newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refState[:, -1])
             newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refState[:, -1])
             newRefState[:, -1] = refState[:, -1]
-        # TODO: MPC version
+        else:
+            return self.refDynamicVirtual(torch.tensor([refState]), MPCflag = 0)[0].tolist()
         return newRefState
 
 
@@ -249,10 +257,11 @@ class TrackingEnv(gym.Env):
             newRefState = torch.empty_like(refState) # [[xr, yr, phir]]
             newRefState[:, :-3] = refState[:, 3:]
             # TODO: add noise to refDeltax
-            refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            # refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            refDeltax = self.T * self.refV
             if curveType == 'random':
                 # deltaphi = torch.rand(refState.size(0)) * 0.05 * noise
-                deltaphi = 0.05 * noise
+                deltaphi = 0.1 * noise
                 newRefState[:, -1] = refState[:, -1] + deltaphi
                 refphi = refState[:, -1] + deltaphi * torch.rand(refState.size(0)) * 0
                 newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refphi)
@@ -264,7 +273,8 @@ class TrackingEnv(gym.Env):
                     refNextx = refNextx + refDeltax / maxSection * torch.cos(refNextphi)
                     refNexty, refNextphi = self.referenceCurve(refNextx, MPCflag, curveType = curveType)
                 newRefState[:, -3], newRefState[:, -2], newRefState[:, -1] = refNextx, refNexty, refNextphi
-        # TODO: MPC version
+        else:
+            return self.refDynamicReal(torch.tensor([refState]), MPCflag = 0, curveType = curveType, noise = noise)[0].tolist()
         return newRefState
         
 
@@ -287,6 +297,7 @@ class TrackingEnv(gym.Env):
 
 
     def relStateCal(self, state):
+        # state = [u, v, omega, [xr, yr, phir], x, y, phi]
         batchSize = state.size(0)
         relState = torch.empty([batchSize, self.relstateDim])
         relState[:, :3] = state[:, :3]
@@ -316,10 +327,10 @@ class TrackingEnv(gym.Env):
             stateADP = np.append(stateADP, state[0].numpy())
             controlADP = np.append(controlADP, control[0].numpy())
 
-            if count < reversalList[0] or count > reversalList[1]:
-                state, reward, done = self.stepReal(state, control, curveType=curveType, noise = 0)
-            else:
-                state, reward, done = self.stepReal(state, control, curveType=curveType, noise = noise)
+            # if count < reversalList[0] or count > reversalList[1]:
+            #     state, reward, done = self.stepReal(state, control, curveType=curveType, noise = 0)
+            # else:
+            state, reward, done = self.stepReal(state, control, curveType=curveType, noise = noise)
 
             rewardSum += min(reward.item(), 100000/self.testStepReal)
             count += 1
@@ -383,7 +394,7 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-01-23-21-34'
+    ADP_dir = './Results_dir/2022-04-08-17-04-13'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -392,11 +403,13 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    noise = 0.5
-    env.curveK = 2
-    env.curveA = 8
-    env.policyTestReal(policy, 4, log_dir, curveType = 'random', noise = noise)
-    env.policyTestVirtual(policy, 0, log_dir, noise=0)
+    noise = 0.25
+    env.curveK = 1/20
+    env.curveA = 4
+    env.policyTestReal(policy, 0, log_dir, curveType = 'random', noise = noise)
+    env.policyTestReal(policy, 4, log_dir, curveType = 'sine', noise = 0)
+    
+    env.policyTestVirtual(policy, 0, log_dir, noise = noise)
 
     # value = Critic(env.relstateDim, 1)
     # value.loadParameters(ADP_dir)

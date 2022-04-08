@@ -25,6 +25,10 @@ relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
 policy = Actor(relstateDim, actionDim, lr=config.lrPolicy)
 value = Critic(relstateDim, 1, lr=config.lrValue)
+# if use_gpu:
+#     policy = policy.cuda()
+#     value = value.cuda()
+
 # ADP_dir = './Results_dir/2022-03-29-10-19-28'
 # policy.loadParameters(ADP_dir)
 # value.loadParameters(ADP_dir)

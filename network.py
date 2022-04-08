@@ -116,7 +116,7 @@ class Critic(nn.Module):
         return x.reshape(x.size(0))
 
     def predict(self, x):
-        return self.forward(state).detach().numpy()
+        return self.forward(x).detach().numpy()
 
     def saveParameters(self, logdir):
         torch.save(self.state_dict(), os.path.join(logdir, "critic.pth"))

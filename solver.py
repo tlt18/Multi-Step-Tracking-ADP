@@ -2,7 +2,7 @@ from myenv import TrackingEnv
 import matplotlib.pyplot as plt
 from config import MPCConfig
 from sys import path
-path.append(r"F:/casadi-windows-py36-v3.5.5-64bit")
+# path.append(r"F:/casadi-windows-py36-v3.5.5-64bit")
 from casadi import *
 
 class Solver():
@@ -43,18 +43,18 @@ class Solver():
         )
         self.F = Function("F", [state, action], [stateNextt])
 
-        refState = SX.sym('refState',3)
+        refState = SX.sym('refState',3 * self.env.refNum)
         cost = pow(state[0] - refState[0], 2) +\
             4 * pow(state[1] - refState[1], 2) +\
             10 * pow(state[2] - refState[2], 2) +\
-            0.5 * pow(action[0], 2) +\
-            0.1 * pow(action[1], 2) # 
+            pow(action[0], 2) +\
+            0.2 * pow(action[1], 2) # 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
     def MPCSolver(self, initState, refState, predictStep, isReal = True):
-        # x: 优化变量
-        # g: 不等式约束
-        # J: 效用函数
+        # x: optimization variable
+        # g: inequality constraints
+        # J: cost function
         x = []
         lbx = []
         ubx = []
@@ -70,27 +70,30 @@ class Solver():
         for k in range(1, predictStep + 1):
             Uname = 'U' + str(k-1)
             Uk = SX.sym(Uname, self.actionDim)
-            # 控制量加入优化变量
+
+            # add control to optimization variable
             x += [Uk]
             lbx += self.actionLow
             ubx += self.actionHigh
-            # 代价函数
+
+            # cost function
             J += self.calCost(Xk, refState, Uk) * gammar
             gammar *= self.gammar
-            #########################真实/虚拟参考点更新############################
+            ######################### Real/vVirtual reference points update ############################
             if isReal==True:
-                refState = self.env.refDynamicReal(refState[0], MPCflag=1)[:3]
+                refState = self.env.refDynamicReal(refState, MPCflag=1)
             else:
-                refState = self.env.refDynamicVirtual(refState, MPCflag=1)[:3]
-                # refState = self.env.refDynamicVirtualx(refState, predictStep, k, MPCflag=1)[:3]
-            # 动力学约束
+                refState = self.env.refDynamicVirtual(refState, MPCflag=1)
+
+            # Dynamic Constraints
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
             Xk = SX.sym(Xname, self.stateDim)
             G += [XNext - Xk]
             lbg += [0 for _ in range(self.stateDim)]
             ubg += [0 for _ in range(self.stateDim)]
-            # 状态量加入优化变量
+
+            # add state to optimization variable
             x += [Xk]
             lbx += self.stateLow
             ubx += self.stateHigh
@@ -98,7 +101,7 @@ class Solver():
         solver = nlpsol('res', 'ipopt', nlp, self._sol_dic)
         # print(solver)
         res = solver(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg, x0=0)
-        # 保存结果
+        # save result
         resX = np.array(res['x'])
         # print(res['x'])
         resState = np.zeros([predictStep, self.stateDim], dtype='float32')
