@@ -60,7 +60,7 @@ if isTrain:
         # update
         train.update(policy)
         if iterarion % config.iterationPrint == 0:
-            print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:8f}, policy lr: {:8f}".format(
+            print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:10f}, policy lr: {:10f}".format(
                 iterarion, train.lossValue[-1], train.lossPolicy[-1], value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
         if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
             env.policyTestReal(policy, iterarion, log_dir+'/train')

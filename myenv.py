@@ -337,7 +337,8 @@ class TrackingEnv(gym.Env):
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 2))
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:-3], controlADP), 1) # [x, y, phi, u, v, omega, [xr, yr, phir], a, delta]
-        with open(log_dir + "/Real_state"+str(iteration)+".csv", 'wb') as f:
+        # with open(log_dir + "/Real_state"+str(iteration)+".csv", 'wb') as f:
+        with open(log_dir + "/Real_last_state.csv", 'wb') as f:
             np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
         plt.figure()
         plt.scatter(stateADP[:, -3], stateADP[:, -2], color='red', s=0.5)
@@ -345,9 +346,10 @@ class TrackingEnv(gym.Env):
         # plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
         # plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
         plt.legend(labels = ['ADP', 'reference'])
-        plt.axis('equal')
+        # plt.axis('equal')
         plt.title('iteration:'+str(iteration))
-        plt.savefig(log_dir + '/Real_iteration'+str(iteration)+'.png')
+        # plt.savefig(log_dir + '/Real_iteration'+str(iteration)+'.png')
+        plt.savefig(log_dir + '/Real_last_iteration.png')
         plt.close()
         return rewardSum
 
@@ -372,7 +374,8 @@ class TrackingEnv(gym.Env):
         controlADP = np.reshape(controlADP, (-1, 2))
         saveADP = np.concatenate((stateADP[:, -3:], stateADP[:, :3], stateADP[:, 3:-3], controlADP), 1)
         if isPlot == True:
-            with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'wb') as f:
+            # with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'wb') as f:
+            with open(log_dir + "/Virtual_last_state.csv", 'wb') as f:
                 np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*self.refNum + "a,delta")
             plt.figure()
             plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
@@ -380,7 +383,8 @@ class TrackingEnv(gym.Env):
             plt.legend(labels = ['ADP', 'reference'])
             plt.axis('equal')
             plt.title('iteration:'+str(iteration))
-            plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
+            # plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
+            plt.savefig(log_dir + '/Virtual_last_iteration.png')
             plt.close()
         return rewardSum
 
@@ -394,7 +398,7 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-08-17-04-13'
+    ADP_dir = './Results_dir/2022-04-08-22-01-07'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -403,13 +407,13 @@ if __name__ == '__main__':
     policy = Actor(env.relstateDim, env.actionSpace.shape[0])
     policy.loadParameters(ADP_dir)
     # env.policyRender(policy)
-    noise = 0.25
+    noise = 0.3
     env.curveK = 1/20
     env.curveA = 4
     env.policyTestReal(policy, 0, log_dir, curveType = 'random', noise = noise)
-    env.policyTestReal(policy, 4, log_dir, curveType = 'sine', noise = 0)
+    # env.policyTestReal(policy, 4, log_dir, curveType = 'sine', noise = 0)
     
-    env.policyTestVirtual(policy, 0, log_dir, noise = noise)
+    env.policyTestVirtual(policy, 0, log_dir, noise = 0)
 
     # value = Critic(env.relstateDim, 1)
     # value.loadParameters(ADP_dir)

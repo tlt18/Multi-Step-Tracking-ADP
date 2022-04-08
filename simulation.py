@@ -561,7 +561,7 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # 检查一下reward是否一样
-    ADP_dir = './Results_dir/2022-04-08-17-04-13'
+    ADP_dir = './Results_dir/2022-04-08-22-01-07'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
