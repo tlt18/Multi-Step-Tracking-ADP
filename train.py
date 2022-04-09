@@ -46,7 +46,6 @@ class Train():
         relState = self.env.relStateCal(self.batchData)
         valuePredict = value(relState)
         valueTaeget = torch.zeros(self.batchSize)
-
         stateNext = self.batchData.clone()
         self.gammarForward = 1
         for _ in range(self.stepForwardPEV):
@@ -68,7 +67,7 @@ class Train():
         value.opt.step()
         value.scheduler.step()
         self.lossIteraValue = np.append(
-            self.lossIteraValue, lossValue.detach().numpy())
+            self.lossIteraValue, lossValue.detach().cpu().numpy())
 
     def policyImprove(self, policy, value):
         for p in value.parameters():
@@ -84,7 +83,7 @@ class Train():
         policy.opt.step()
         policy.scheduler.step()
         self.lossIteraPolicy = np.append(
-            self.lossIteraPolicy, lossPolicy.detach().numpy())
+            self.lossIteraPolicy, lossPolicy.detach().cpu().numpy())
 
     def calLoss(self):
         self.lossValue = np.append(self.lossValue, self.lossIteraValue.mean())

@@ -8,7 +8,7 @@ PI = 3.1415926
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.tensor([2, 0.15])
+        self._out_gain = torch.tensor([0.3])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         #TODO: 选择更加合理的参数
@@ -47,14 +47,14 @@ class Actor(nn.Module):
         # optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, step_size = 1000, gamma=0.9, last_epoch=-1)
+            self.opt, step_size = 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])
 
     def forward(self, x):
-        temp = torch.mul(x, self._norm_matrix)
-        x = torch.mul(self._out_gain, self.layers(temp))
+        # temp = torch.mul(x, self._norm_matrix)
+        x = torch.mul(self._out_gain, self.layers(x))
         return x
 
     def predict(self, x):
@@ -104,14 +104,14 @@ class Critic(nn.Module):
         # initial optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, 1000, gamma=0.9, last_epoch=-1)
+            self.opt, 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         # self._zero_state = torch.zeros(inputSize)
         self._zero_state = torch.tensor([5, 0, 0, 0, 0, 0])
 
     def forward(self, x):
-        x = torch.mul(x, self._norm_matrix)
+        # x = torch.mul(x, self._norm_matrix)
         x = self.layers(x)
         return x.reshape(x.size(0))
 
