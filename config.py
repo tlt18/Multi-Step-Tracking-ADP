@@ -21,7 +21,7 @@ class vehicleDynamic():
     def __init__(self):
         # 参考速度
         self.refV = 5
-        self.curveK = 1/10
+        self.curveK = 1/8
         self.curveA = 1
         # self.curveK = 1/5
         # self.curveA = 2
@@ -46,7 +46,7 @@ class vehicleDynamic():
 
 class MPCConfig():
     def __init__(self):
-        self.MPCStep = [10, 20, 40]
+        self.MPCStep = [10, 30, 60]
         config = trainConfig()
         self.gammar = config.gammar
         # self.MPCStep = [205, 210, 220, 240]

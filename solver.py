@@ -10,12 +10,12 @@ class Solver():
         self._sol_dic = {'ipopt.print_level': 0,
                          'ipopt.sb': 'yes', 'print_time': 0}
         self.env = TrackingEnv()
-        self.stateLow = self.env.stateLow[3:] + self.env.stateLow[:3]
-        self.stateHigh = self.env.stateHigh[3:] + self.env.stateHigh[:3]
+        self.stateLow = self.env.stateLow
+        self.stateHigh = self.env.stateHigh
         self.actionLow = self.env.actionLow
         self.actionHigh = self.env.actionHigh
         self.actionDim = self.env.actionSpace.shape[0]
-        self.stateDim = 6
+        self.stateDim = 5
         config = MPCConfig()
         self.gammar = config.gammar
         self.T = self.env.T
@@ -29,26 +29,23 @@ class Solver():
         self.kf = -155495  # 前轮总侧偏刚度
         self.kr = -155495  # 后轮总侧偏刚度
         self.Iz = 2642  # 转动惯量
+        # state = [v, omega, x, y, phi]
         stateNextt = vertcat(
-            state[0] + self.T * (state[3] * cos(state[2]) - state[4] * sin(state[2])),
-            state[1] + self.T * (state[4] * cos(state[2]) + state[3] * sin(state[2])),
-            state[2] + self.T * state[5],
-            state[3] + self.T * action[0],
-            (-(self.a * self.kf - self.b * self.kr) * state[5] + self.kf * action[1] * state[3] +
-                self.m * state[5] * state[3] * state[3] - self.m * state[3] * state[4] / self.T) \
-                / (self.kf + self.kr - self.m * state[3] / self.T),
-            (-self.Iz * state[5] * state[3] / self.T - (self.a * self.kf - self.b * self.kr) * state[4]
-                    + self.a * self.kf * action[1] * state[3]) \
-                / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * state[3] / self.T)
+            (-(self.a * self.kf - self.b * self.kr) * state[1] + self.kf * action[0] * self.env.refV +
+                self.m * state[1] * self.env.refV * self.env.refV - self.m * self.env.refV * state[0] / self.T) \
+                / (self.kf + self.kr - self.m * self.env.refV / self.T), # v
+            (-self.Iz * state[1] * self.env.refV / self.T - (self.a * self.kf - self.b * self.kr) * state[0]
+                    + self.a * self.kf * action[0] * self.env.refV) \
+                / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * self.env.refV / self.T), # omega
+            state[2] + self.T * (self.env.refV * cos(state[4]) - state[0] * sin(state[4])), # x
+            state[3] + self.T * (state[0] * cos(state[4]) + self.env.refV * sin(state[4])), # y
+            state[4] + self.T * state[1], # phi
         )
         self.F = Function("F", [state, action], [stateNextt])
-
-        refState = SX.sym('refState',3 * self.env.refNum)
-        cost = pow(state[0] - refState[0], 2) +\
-            4 * pow(state[1] - refState[1], 2) +\
-            10 * pow(state[2] - refState[2], 2) +\
-            pow(action[0], 2) +\
-            0.2 * pow(action[1], 2) # 
+        refState = SX.sym('refState',3)
+        cost = pow(-(state[2] - refState[0]) * sin(refState[2]) + (state[3] - refState[1]) * cos(refState[2]), 2) +\
+            10 * pow(state[4] - refState[2], 2) +\
+            10 * pow(action[0], 2)
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
     def MPCSolver(self, initState, refState, predictStep, isReal = True):

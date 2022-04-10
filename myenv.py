@@ -64,7 +64,7 @@ class TrackingEnv(gym.Env):
         torch.manual_seed(s)
 
 
-    def resetRandom(self, stateNum, noise = 1, MPCflag = 0):
+    def resetRandom(self, stateNum, noise = 1, MPCflag = 0, MPCtest=False):
         # augmented state space \bar x = [v, omega, x, y, phi, xr, yr, phir]
         newState = torch.empty([stateNum, self.stateDim])
         # v: [-self.refV/8, self.refV/8]
@@ -73,10 +73,10 @@ class TrackingEnv(gym.Env):
         newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * noise
         # x
         newState[:, 2] = torch.zeros((stateNum))
-        # y: [-self.refV * self.T, self.refV * self.T]
-        newState[:, 3] = 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * noise
-        # phi: [-pi/15, pi/15] [-12, 12]
-        newState[:, 4] = 2 * (torch.rand(stateNum) - 1/2) * np.pi/15 * noise
+        # y: [-self.refV * self.T, self.refV * self.T] * 1.5
+        newState[:, 3] = 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 1.5 * noise
+        # phi: [-pi/10, pi/10] [-18, 18]
+        newState[:, 4] = 2 * (torch.rand(stateNum) - 1/2) * np.pi/10 * noise
         # [xr, yr, phir]
         newState[:, 5:] = torch.zeros((stateNum,3))
         if MPCflag == 0:
@@ -135,9 +135,9 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0:
             deltaL = -(state[:, 2] - state[:, 5]) * torch.sin(state[:, 7]) + (state[:, 3] - state[:, 6]) * torch.cos(state[:, 7])
             deltaphi = state[:, 4] - state[:, 7]
-            reward = torch.pow(deltaL, 2) + 10 * torch.pow(deltaphi, 2) + 10 * torch.pow(control[0], 2)
+            reward = torch.pow(deltaL, 2) + 10 * torch.pow(deltaphi, 2) + 10 * torch.pow(control[:, 0], 2)
         else:
-            return self.calReward(torch.tensor([state]), torch.state([control]), MPCflag=0)[0].tolist()
+            return self.calReward(torch.tensor([state]), torch.tensor([control]), MPCflag=0)[0].tolist()
         return reward
 
 
@@ -244,10 +244,10 @@ class TrackingEnv(gym.Env):
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 1))
-        saveADP = np.concatenate((stateADP[:, 2:5], stateADP[:, :2], stateADP[:, 5:8], controlADP), 1) # [x, y, phi, v, omega, xr, yr, phir, delta]
+        saveADP = np.concatenate((stateADP, controlADP), 1) # [v, omega, x, y, phi, xr, yr, phir, delta]
         # with open(log_dir + "/Real_state"+str(iteration)+".csv", 'wb') as f:
         with open(log_dir + "/Real_last_state.csv", 'wb') as f:
-            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x, y, phi, v, omega, xr, yr, phir, delta")
+            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v, omega, x, y, phi, xr, yr, phir, delta")
         plt.figure()
         plt.scatter(stateADP[:, 2], stateADP[:, 3], color='red', s=0.5)
         plt.scatter(stateADP[:, 5], stateADP[:, 6], color='gray', s=0.5)
@@ -280,11 +280,11 @@ class TrackingEnv(gym.Env):
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 1))
-        saveADP = np.concatenate((stateADP[:, 2:5], stateADP[:, :2], stateADP[:, 5:8], controlADP), 1) # [x, y, phi, v, omega, xr, yr, phir, delta]
+        saveADP = np.concatenate((stateADP, controlADP), 1) # [x, y, phi, v, omega, xr, yr, phir, delta]
         if isPlot == True:
             # with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'wb') as f:
             with open(log_dir + "/Virtual_last_state.csv", 'wb') as f:
-                np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x, y, phi, v, omega, xr, yr, phir, delta")
+                np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v, omega, x, y, phi, xr, yr, phir, delta")
             plt.figure()
             plt.scatter(stateADP[:, 2], stateADP[:, 3],  s=20, c='red', marker='*')
             plt.scatter(stateADP[:, 5], stateADP[:, 6], c='gray', s = 20, marker='+')
@@ -306,7 +306,7 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-09-10-12-16'
+    ADP_dir = './Results_dir/2022-04-09-23-35-26'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     # env.policyRender(policy)
     noise = 0.25
     env.curveK = 1/20
-    env.curveA = 4
+    env.curveA = 10
     env.policyTestReal(policy, 0, log_dir, curveType = 'sine', noise = noise)
     # env.policyTestReal(policy, 4, log_dir, curveType = 'sine', noise = 0)
     
