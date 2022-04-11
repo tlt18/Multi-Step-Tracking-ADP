@@ -13,11 +13,11 @@ from myenv import TrackingEnv
 from network import Actor, Critic
 from solver import Solver
 
-def simulationReal(MPCStep, ADP_dir, simu_dir):
+def simulationReal(MPCStep, ADP_dir, simu_dir,seed=0):
     plotDelete = 0
     # apply in real time
     env = TrackingEnv()
-    env.seed(0)
+    env.seed(seed)
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
     policy = Actor(relstateDim, actionDim)
@@ -33,10 +33,13 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
     count = 0
+    timeADP = 0
     while(count < env.testStepReal):
         stateADPList = np.append(stateADPList, stateAdp.numpy()) # [v, omega, x, y, phi, xr, yr, phir]
         relState = env.relStateCal(stateAdp)
+        timeStart = time.time()
         controlAdp = policy(relState).detach()
+        timeADP += time.time() - timeStart
         stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = 'sine')
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
@@ -53,9 +56,12 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     with open(simu_dir + "/simulationRealADP.csv", 'wb') as f:
         np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v,omega,x,y,phi,xr,yr,phir,delta")
 
+
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
+    timeMPCAll = []
+    timeMPCAll.append(timeADP)
     for mpcstep in MPCStep:
         print("----------------------Start Solving in Real Time!----------------------")
         print("MPCStep: {}".format(mpcstep))
@@ -66,9 +72,12 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
+        timeMPC = 0
         while(count < env.testStepReal):
             # MPC
+            timeStart = time.time()
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+            timeMPC += time.time() - timeStart
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
             stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
             action = control[0].tolist()
@@ -90,33 +99,60 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
         with open(simu_dir + "/simulationRealMPC_"+str(mpcstep)+".csv", 'wb') as f:
             np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="v,omega,x,y,phi,xr,yr,phir,delta")
+
+        print("MPC-{} consumes {:.4f}s {} step".format(mpcstep, timeMPC, env.testStepReal))
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
+        timeMPCAll.append(timeMPC)
         # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStepReal, rewardMPC, rewardADP.item()))
 
+    if os.path.exists(simu_dir + "/time.csv")==False:
+        with open(simu_dir + "/time.csv", 'ab') as f:
+            np.savetxt(f, np.array([timeMPCAll]), delimiter=',', fmt='%.6f', comments='', header="ADP,MPC-"+",MPC-".join([str(m) for m in MPCStep]))
+    else:
+        with open(simu_dir + "/time.csv", 'ab') as f:
+            np.savetxt(f, np.array([[0, timeMPC, env.testStepReal]]), delimiter=',', fmt='%.6f', comments='')
+
     # Cal relative error
+    errorSaveList = []
     # Steering Angle
     ADPData = controlADPList[:,0]
     MPCData = controlMPCAll[-1][:, 0]
-    calRelError(ADPData, MPCData, title = 'Steering Angle', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Steering Angle', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Lateral Position
     ADPData =  - (stateADPList[:,2] - stateADPList[:,5]) * np.sin(stateADPList[:,7]) + (stateADPList[:,3] - stateADPList[:,6]) * np.cos(stateADPList[:,7])
     MPCData = - (stateMPCAll[-1][:,2] - stateMPCAll[-1][:,5]) * np.sin(stateMPCAll[-1][:,7]) + (stateMPCAll[-1][:,3] - stateMPCAll[-1][:,6]) * np.cos(stateMPCAll[-1][:,7])
     # ADPData = stateADPList[:, 3]
     # MPCData = stateMPCAll[-1][:, 3]
-    calRelError(ADPData, MPCData, title = 'Lateral Position', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Lateral Position', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Heading Angle
     ADPData = stateADPList[:,4]
     MPCData = stateMPCAll[-1][:, 4]
-    calRelError(ADPData, MPCData, title = 'Heading Angle', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Heading Angle', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Utility  Function
     ADPData = rewardADP
     MPCData = rewardMPCAll[-1]
-    calRelError(ADPData, MPCData, title = 'Utility  Function', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Utility  Function', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
+
+    if os.path.exists(simu_dir + "/RelError.csv")==False:
+        with open(simu_dir + "/RelError.csv", 'ab') as f:
+            np.savetxt(f, np.array([errorSaveList]), delimiter=',', fmt='%.4f', comments='', \
+                header='Steering Angle mean,max,Lateral Position mean,max,Heading Angle mean,max,Utility Function mean, max')
+    else:
+        with open(simu_dir + "/RelError.csv", 'ab') as f:
+            np.savetxt(f, np.array([errorSaveList]), delimiter=',', fmt='%.4f', comments='')
 
     # Plot
     # stateAll = [v, omega, x, y, phi, xr, yr, phir]
@@ -263,27 +299,44 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
         # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStepVirtual, rewardMPC, rewardADP.item()))
 
     # Cal relative error
+    errorSaveList = []
     # Steering Angle
     ADPData = controlADPList[:,0]
     MPCData = controlMPCAll[-1][:, 0]
-    calRelError(ADPData, MPCData, title = 'Steering Angle', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Steering Angle', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Lateral Position
     ADPData =  - (stateADPList[:,2] - stateADPList[:,5]) * np.sin(stateADPList[:,7]) + (stateADPList[:,3] - stateADPList[:,6]) * np.cos(stateADPList[:,7])
     MPCData = - (stateMPCAll[-1][:,2] - stateMPCAll[-1][:,5]) * np.sin(stateMPCAll[-1][:,7]) + (stateMPCAll[-1][:,3] - stateMPCAll[-1][:,6]) * np.cos(stateMPCAll[-1][:,7])
     # ADPData = stateADPList[:, 3]
     # MPCData = stateMPCAll[-1][:, 3]
-    calRelError(ADPData, MPCData, title = 'Lateral Position', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Lateral Position', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Heading Angle
     ADPData = stateADPList[:,4] - stateADPList[:,7]
     MPCData = stateMPCAll[-1][:, 4] - stateMPCAll[-1][:, 7]
-    calRelError(ADPData, MPCData, title = 'Heading Angle', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Heading Angle', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
 
     # Utility  Function
     ADPData = rewardADP
     MPCData = rewardMPCAll[-1]
-    calRelError(ADPData, MPCData, title = 'Utility  Function', simu_dir = simu_dir)
+    relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Utility  Function', simu_dir = simu_dir)
+    errorSaveList.append(relativeErrorMean)
+    errorSaveList.append(relativeErrorMax)
+
+    if os.path.exists(simu_dir + "/RelError.csv")==False:
+        with open(simu_dir + "/RelError.csv", 'ab') as f:
+            np.savetxt(f, np.array([errorSaveList]), delimiter=',', fmt='%.4f', comments='', \
+                header='Steering Angle mean,max,Lateral Position mean,max,Heading Angle mean,max,Utility Function mean, max')
+    else:
+        with open(simu_dir + "/RelError.csv", 'ab') as f:
+            np.savetxt(f, np.array([errorSaveList]), delimiter=',', fmt='%.4f', comments='')
 
 
     # Plot
@@ -402,18 +455,24 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False):
         plt.title('Relative Error of '+title)
         plt.savefig(simu_dir + '/relative-error-'+title+'.png')
         plt.close()
+    return relativeErrorMean, relativeErrorMax
 
 if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
-    # 检查一下reward是否一样
-    ADP_dir = './Results_dir/2022-04-10-11-35-16'
-    # 1. 真实时域ADP、MPC应用
+    # check reward
+    ADP_dir = './Results_dir/2022-04-10-23-28-38'
+    # 1. Apply in real time
     simu_dir = ADP_dir + '/simulationReal'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir)
+    for seed in range(1):
+        print('seed = {}'.format(seed))
+        simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
 
-    # 2. 虚拟时域ADP、MPC应用
+    # 2. Apply in virtual time
     simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = 0)
+    for seed in range(100):
+        print('seed = {}'.format(seed))
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+        
