@@ -307,7 +307,7 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-11-09-31-40'
+    ADP_dir = './Results_dir/2022-04-13-15-28-05'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()

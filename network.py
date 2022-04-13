@@ -26,38 +26,38 @@ class Actor(nn.Module):
         #     nn.Tanh()
         # )
 
-        # self.layers = nn.Sequential(
-        #     nn.Linear(inputSize, 256),
-        #     nn.ELU(),
-        #     nn.Linear(256, 256),
-        #     nn.ELU(),
-        #     nn.Linear(256, 256),
-        #     nn.ELU(),
-        #     nn.Linear(256, 256),  # 新加
-        #     nn.ELU(),
-        #     nn.Linear(256, 256),  # 新加
-        #     nn.ELU(),
-        #     nn.Linear(256, outputSize),
-        #     nn.Tanh()
-        # )
-
         self.layers = nn.Sequential(
             nn.Linear(inputSize, 256),
-            nn.LayerNorm(256),
-            nn.Tanh(),
-
+            nn.ELU(),
             nn.Linear(256, 256),
             nn.ELU(),
-
             nn.Linear(256, 256),
             nn.ELU(),
-
-            nn.Linear(256, 256),
+            nn.Linear(256, 256),  # 新加
             nn.ELU(),
-            
+            nn.Linear(256, 256),  # 新加
+            nn.ELU(),
             nn.Linear(256, outputSize),
             nn.Tanh()
         )
+
+        # self.layers = nn.Sequential(
+        #     nn.Linear(inputSize, 256),
+        #     nn.LayerNorm(256),
+        #     nn.Tanh(),
+
+        #     nn.Linear(256, 256),
+        #     nn.ELU(),
+
+        #     nn.Linear(256, 256),
+        #     nn.ELU(),
+
+        #     nn.Linear(256, 256),
+        #     nn.ELU(),
+        
+        #     nn.Linear(256, outputSize),
+        #     nn.Tanh()
+        # )
 
         # optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
@@ -93,9 +93,7 @@ class Actor(nn.Module):
                 init.constant_(m.bias, 0.0)
 
         for name, module in self.layers.named_children():
-            # TODO: modify to 9
-            # TODO: ablation experiments
-            if name in ['9']: # 将倒数第一层的权重设为0，网络正常训练
+            if name in ['10']: # Set the weight of the last layer to 0.0001
                 module.weight.data = module.weight.data * 0.0001
                 # module.bias.data = torch.zeros_like(module.bias)
 

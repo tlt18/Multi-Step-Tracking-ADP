@@ -389,7 +389,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xName = 'Tracel dist [m]'
     yName = 'y posision [m]'
     title = 'y-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
 
     # utility v.s. t
     yADP = rewardADP
@@ -399,7 +399,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xName = 'Predictive horizon [s]'
     yName = 'utility'
     title = 'utility-t'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False )
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True )
 
 
 def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False):
@@ -410,10 +410,10 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
     else:
         markerList = ['None', 'None', 'None', 'None']
     for i in range(len(xMPC)):
-        plt.plot(xMPC[i], yMPC[i], linewidth=2, color = colorList[i], linestyle = '--', marker=markerList[i], markersize=4)
-    plt.plot(xADP, yADP, linewidth = 2, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
+        plt.plot(xMPC[i], yMPC[i], linewidth=4, color = colorList[i], linestyle = '--', marker=markerList[i], markersize=4)
+    plt.plot(xADP, yADP, linewidth = 3, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
     if isError == True:
-        plt.plot(xADP, np.zeros_like(xADP), linewidth = 2, color = 'grey', linestyle = '--')
+        plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = 1, color = 'grey', linestyle = '--')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
     else:
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP'])
@@ -461,7 +461,7 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # check reward
-    ADP_dir = './Results_dir/2022-04-10-23-28-38'
+    ADP_dir = './Results_dir/2022-04-13-15-28-05'
     # 1. Apply in real time
     simu_dir = ADP_dir + '/simulationReal'
     os.makedirs(simu_dir, exist_ok=True)
@@ -473,6 +473,6 @@ if __name__ == '__main__':
     simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
     for seed in range(100):
+    # for seed in [5]:
         print('seed = {}'.format(seed))
         simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
-        
