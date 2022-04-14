@@ -5,6 +5,7 @@ from datetime import datetime
 from matplotlib import markers
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import torch
 
@@ -245,7 +246,6 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
         count += 1
-
     stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
     controlADPList = np.reshape(controlADPList, (-1, actionDim))
     stateADPList = np.delete(stateADPList, range(plotDelete), 0)
@@ -254,6 +254,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
     with open(simu_dir + "/simulationRealADP.csv", 'wb') as f:
         np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v,omega,x,y,phi,xr,yr,phir,delta")
+
+    # MPC
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
@@ -281,22 +283,17 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
             rewardMPC = np.append(rewardMPC, reward)
             controlMPCList = np.append(controlMPCList, control[count])
             count += 1
-
         stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
         controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
         stateMPCList = np.delete(stateMPCList, range(plotDelete), 0)
         controlMPCList = np.delete(controlMPCList, range(plotDelete), 0)
         rewardMPC = np.delete(rewardMPC, range(plotDelete), 0)
-
         saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
-
         with open(simu_dir + "/simulationVirtualMPC_"+str(mpcstep)+".csv", 'wb') as f:
             np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="v,omega,x,y,phi,xr,yr,phir,delta")
-
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
-        # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStepVirtual, rewardMPC, rewardADP.item()))
 
     # Cal relative error
     errorSaveList = []
@@ -401,6 +398,121 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     title = 'utility-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True )
 
+def  simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False):
+    env = TrackingEnv()
+    relstateDim = env.relstateDim
+    value = Critic(relstateDim, 1)
+    value.loadParameters(ADP_dir)
+    solver = Solver()
+
+    # ADP
+    state = env.resetRandom(1, noise=0) # [v, omega, x, y, phi, xr, yr, phir]
+    deltay = torch.arange(-0.5, 0.5, 0.01)
+    deltaphi = torch.arange(-0.2, 0.2, 0.01)
+    X, Y = torch.meshgrid(deltay, deltaphi * 180/np.pi)
+    valueGridADP = torch.empty_like(X)
+    X = X.numpy()
+    Y = Y.numpy()
+    for i in range(deltay.shape[0]):
+        for j in range(deltaphi.shape[0]):
+            stateUse = state.clone()
+            stateUse[:, 3] += deltay[i]
+            stateUse[:, 4] += deltaphi[j]
+            refState = env.relStateCal(stateUse)
+            valueGridADP[i][j] = value(refState).detach()
+    valueGridADP = valueGridADP.numpy()
+    figure = plt.figure()
+    ax = Axes3D(figure)
+    surf = ax.plot_surface(X, Y, valueGridADP, rstride=1,cstride=1,cmap='rainbow')
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    ax.set_zlabel('Value')
+    # figure.colorbar(surf, shrink=0.5, aspect=5)
+    plt.savefig(simu_dir + '/valueADP.png')
+    plt.close()
+    figure = plt.figure()
+    ax = figure.add_subplot()
+    ax.contour(X, Y, valueGridADP, cmap='rainbow')
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    plt.savefig(simu_dir + '/valueADPContourf.png')
+    plt.close()
+
+    # MPC
+    if isLoad == False:
+        deltay = deltay.numpy()
+        deltaphi = deltaphi.numpy()
+        valueGridMPC = np.zeros_like(X)
+        for i in range(deltay.shape[0]):
+            for j in range(deltaphi.shape[0]):
+                stateUse = state[0].clone().tolist()
+                stateUse[3] += deltay[i]
+                stateUse[4] += deltaphi[j]
+                stateMpc = stateUse[:5]
+                refStateMpc = stateUse[5:8]
+                _, control = solver.MPCSolver(stateMpc, refStateMpc, MPCStep[-1], isReal=False)
+                count = 0
+                gammarForward = 1
+                while(count < MPCStep[-1]):
+                    action = control[count].tolist()
+                    reward = env.calReward(stateMpc + refStateMpc, action, MPCflag=1)
+                    temp = env.vehicleDynamic(
+                        stateMpc[2], stateMpc[3], stateMpc[4], env.refV, stateMpc[0], stateMpc[1], 0, action[0], MPCflag=1)
+                    stateMpc[2:5] = temp[:3] # x, y, phi
+                    stateMpc[:2] = temp[4:6] # v, omega
+                    refStateMpc = env.refDynamicVirtual(refStateMpc, MPCflag=1)
+                    valueGridMPC[i][j] += gammarForward * reward
+                    gammarForward *= solver.gammar
+                    count += 1
+        with open(simu_dir + "/MPCvalue.csv", 'wb') as f:
+            np.savetxt(f, valueGridMPC, delimiter=',', fmt='%.8f', comments='')
+    elif isLoad == True:
+        valueGridMPC = np.loadtxt(simu_dir + "/MPCvalue.csv", delimiter=',')
+    figure = plt.figure()
+    ax = Axes3D(figure)
+    surf = ax.plot_surface(X, Y, valueGridMPC, rstride=1,cstride=1,cmap='rainbow')
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    ax.set_zlabel('Value')
+    # figure.colorbar(surf, shrink=0.5, aspect=5)
+    plt.savefig(simu_dir + '/valueMPC.png')
+    plt.close()
+    figure = plt.figure()
+    ax = figure.add_subplot()
+    ax.contour(X, Y, valueGridMPC, cmap='rainbow')
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    plt.savefig(simu_dir + '/valueMPCContourf.png')
+    plt.close()
+    figure = plt.figure()
+    ax = Axes3D(figure)
+    surf = ax.plot_surface(X, Y, valueGridADP - valueGridMPC, rstride=1,cstride=1,cmap='rainbow')
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    ax.set_zlabel('Value')
+    # figure.colorbar(surf, shrink=0.5, aspect=5)
+    plt.savefig(simu_dir + '/valueCompare.png')
+    figure = plt.figure()
+    ax = Axes3D(figure)
+    surf = ax.plot_surface(X, Y, np.abs((valueGridADP - valueGridMPC)/(valueGridMPC+0.2))*100, rstride=1,cstride=1,cmap='rainbow')
+    # ax.grid(False)
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.set_xlabel('Delta Y [m]')
+    ax.set_ylabel('Delta Phi [°]')
+    ax.set_zlabel('Relative Error [%]')
+    # figure.colorbar(surf, shrink=0.5, aspect=5)
+    plt.savefig(simu_dir + '/valueCompareRelative.png')
 
 def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False):
     plt.figure()
@@ -410,8 +522,8 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
     else:
         markerList = ['None', 'None', 'None', 'None']
     for i in range(len(xMPC)):
-        plt.plot(xMPC[i], yMPC[i], linewidth=4, color = colorList[i], linestyle = '--', marker=markerList[i], markersize=4)
-    plt.plot(xADP, yADP, linewidth = 3, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
+        plt.plot(xMPC[i], yMPC[i], linewidth=2, color = colorList[i], linestyle = '--', marker=markerList[i], markersize=4)
+    plt.plot(xADP, yADP, linewidth = 2, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
     if isError == True:
         plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = 1, color = 'grey', linestyle = '--')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
@@ -445,7 +557,7 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False):
     relativeError = np.abs((ADP - MPC)/(maxMPC - minMPC + 1e-3))
     relativeErrorMax = np.max(relativeError, 0)
     relativeErrorMean = np.mean(relativeError, 0)
-    print(title +' Error | Mean: {:.2f}%, Max: {:.2f}%'.format(relativeErrorMean*100,relativeErrorMax*100))
+    print(title +' Error | Mean: {:.4f}%, Max: {:.4f}%'.format(relativeErrorMean*100,relativeErrorMax*100))
     if isPlot == True:
         plt.figure()
         data = relativeError
@@ -461,18 +573,23 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # check reward
-    ADP_dir = './Results_dir/2022-04-13-15-28-05'
-    # 1. Apply in real time
-    simu_dir = ADP_dir + '/simulationReal'
-    os.makedirs(simu_dir, exist_ok=True)
-    for seed in range(1):
-        print('seed = {}'.format(seed))
-        simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
+    ADP_dir = './Results_dir/2022-04-13-17-31-23'
+    # # 1. Apply in real time
+    # simu_dir = ADP_dir + '/simulationReal'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # for seed in range(1):
+    #     print('seed = {}'.format(seed))
+    #     simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
 
-    # 2. Apply in virtual time
-    simu_dir = ADP_dir + '/simulationVirtual'
-    os.makedirs(simu_dir, exist_ok=True)
-    for seed in range(100):
+    # # 2. Apply in virtual time
+    # simu_dir = ADP_dir + '/simulationVirtual'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # # for seed in range(100):
     # for seed in [5]:
-        print('seed = {}'.format(seed))
-        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+    #     print('seed = {}'.format(seed))
+    #     simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+
+    # # 3. Value
+    simu_dir = ADP_dir + '/simulationValue'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = True)

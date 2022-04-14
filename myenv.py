@@ -307,7 +307,7 @@ class TrackingEnv(gym.Env):
         plt.close()
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-13-15-28-05'
+    ADP_dir = './Results_dir/2022-04-10-23-28-38'
     log_dir = ADP_dir + '/test'
     os.makedirs(log_dir, exist_ok=True)
     env = TrackingEnv()
@@ -322,43 +322,5 @@ if __name__ == '__main__':
     env.policyTestReal(policy, 0, log_dir, curveType = 'sine', noise = noise)
     # env.policyTestReal(policy, 4, log_dir, curveType = 'sine', noise = 0)
     env.policyTestVirtual(policy, 0, log_dir, noise = 1)
-
-    value = Critic(env.relstateDim, 1)
-    value.loadParameters(ADP_dir)
-    state = env.resetRandom(1, noise=0) # [v, omega, x, y, phi, xr, yr, phir]
-    deltay = torch.arange(-0.5, 0.5, 0.01)
-    deltaphi = torch.arange(-0.2, 0.2, 0.01)
-    X, Y = torch.meshgrid(deltay, deltaphi * 180/np.pi)
-    valueGrid = torch.empty_like(X)
-    for i in range(deltay.shape[0]):
-        for j in range(deltaphi.shape[0]):
-            stateUse = state.clone()
-            stateUse[:, 3] += deltay[i]
-            stateUse[:, 4] += deltaphi[j]
-            refState = env.relStateCal(stateUse)
-            valueGrid[i][j] = value(refState).detach()
-
-    figure = plt.figure()
-    ax = Axes3D(figure)
-    surf = ax.plot_surface(X.numpy(), Y.numpy(), valueGrid.numpy(), rstride=1,cstride=1,cmap='rainbow')
-    ax.set_xlabel('Delta Y [m]')
-    ax.set_ylabel('Delta Phi [°]')
-    ax.set_zlabel('Value')
-    figure.colorbar(surf, shrink=0.5, aspect=5)
-    # plt.show()
-    plt.savefig(log_dir + '/value.png')
-    plt.close()
-
-    figure = plt.figure()
-    ax = figure.add_subplot()
-    ax.contour(X.numpy(), Y.numpy(), valueGrid.numpy(), cmap='rainbow')
-    ax.set_xlabel('Delta Y [m]')
-    ax.set_ylabel('Delta Phi [°]')
-    plt.savefig(log_dir + '/valuecontourf.png')
-    plt.close()
-
-    # state = env.resetRandom(1, noise=0) + torch.tensor([[0, 0, 0, 0.1, 0, 0, 0, 0]]) 
-    # refState = env.relStateCal(state)
-    # print('refState is {}, value is {}'.format(refState[0].tolist(), value(refState)[0].tolist()))
 
 

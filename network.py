@@ -45,16 +45,12 @@ class Actor(nn.Module):
         #     nn.Linear(inputSize, 256),
         #     nn.LayerNorm(256),
         #     nn.Tanh(),
-
         #     nn.Linear(256, 256),
         #     nn.ELU(),
-
         #     nn.Linear(256, 256),
         #     nn.ELU(),
-
         #     nn.Linear(256, 256),
         #     nn.ELU(),
-        
         #     nn.Linear(256, outputSize),
         #     nn.Tanh()
         # )
