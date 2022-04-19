@@ -46,7 +46,6 @@ class Train():
         relState = self.env.relStateCal(self.batchData)
         valuePredict = value(relState)
         valueTaeget = torch.zeros(self.batchSize)
-
         stateNext = self.batchData.clone()
         self.gammarForward = 1
         for _ in range(self.stepForwardPEV):

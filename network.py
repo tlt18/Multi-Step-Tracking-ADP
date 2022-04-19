@@ -8,38 +8,24 @@ PI = 3.1415926
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.tensor([2, 0.15])
+        self._out_gain = torch.tensor([2, 0.3])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         #TODO: 选择更加合理的参数
         # 相当于手动选择特征、归一化等等
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
         
-        #TODO: compare
-        # NN
-        # self.layers = nn.Sequential(
-        #     nn.Linear(inputSize, 256),
-        #     nn.ELU(),
-        #     nn.Linear(256, 256),
-        #     nn.ELU(),
-        #     nn.Linear(256, outputSize),
-        #     nn.Tanh()
-        # )
-
         self.layers = nn.Sequential(
             nn.Linear(inputSize, 256),
-            nn.LayerNorm(256),
-            nn.Tanh(),
-
+            nn.ELU(),
             nn.Linear(256, 256),
             nn.ELU(),
-
             nn.Linear(256, 256),
             nn.ELU(),
-
-            nn.Linear(256, 256),
+            nn.Linear(256, 256),  # 新加
             nn.ELU(),
-            
+            nn.Linear(256, 256),  # 新加
+            nn.ELU(),
             nn.Linear(256, outputSize),
             nn.Tanh()
         )
@@ -47,7 +33,7 @@ class Actor(nn.Module):
         # optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, step_size = 1000, gamma=0.9, last_epoch=-1)
+            self.opt, step_size = 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])
@@ -70,7 +56,6 @@ class Actor(nn.Module):
         """
         initial parameter using xavier
         """
-        # TODO: compare
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 # init.xavier_uniform_(m.weight)
@@ -78,7 +63,7 @@ class Actor(nn.Module):
                 init.constant_(m.bias, 0.0)
 
         for name, module in self.layers.named_children():
-            if name in ['9']: # 将倒数第一层的权重设为0，网络正常训练
+            if name in ['10']: # 将倒数第一层的权重设为0，网络正常训练
                 module.weight.data = module.weight.data * 0.0001
                 # module.bias.data = torch.zeros_like(module.bias)
 
@@ -104,7 +89,7 @@ class Critic(nn.Module):
         # initial optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.opt, 1000, gamma=0.9, last_epoch=-1)
+            self.opt, 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
         # self._zero_state = torch.zeros(inputSize)
