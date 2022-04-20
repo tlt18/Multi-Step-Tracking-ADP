@@ -340,8 +340,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isError = True)
 
     # utility v.s. x
-    xADP = stateADPList[:,2]
-    xMPC = [mpc[:,2] for mpc in stateMPCAll]
+    xADP = stateADPList[:,0]
+    xMPC = [mpc[:,0] for mpc in stateMPCAll]
     yADP = rewardADP
     yMPC = [mpc for mpc in rewardMPCAll]
     xName = 'Travel dist [m]'
@@ -623,7 +623,7 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # 检查一下reward是否一样
-    ADP_dir = './Results_dir/2022-04-19-22-46-48'
+    ADP_dir = './Results_dir/2022-04-20-10-29-48'
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能

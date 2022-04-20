@@ -43,8 +43,8 @@ class TrackingEnv(gym.Env):
         # action space
         # u = [acc, delta]
         # If you modify the range, you must modify the output range of Actor.
-        self.actionLow = [-0.2, -0.3]
-        self.actionHigh = [0.2, 0.3]
+        self.actionLow = [-2, -0.3]
+        self.actionHigh = [2, 0.3]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
                        high=np.array(self.actionHigh), dtype=np.float64)
@@ -68,8 +68,8 @@ class TrackingEnv(gym.Env):
     def resetRandom(self, stateNum, noise = 1, MPCflag = 0, MPCtest = False):
         # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
-        # u: [3*self.refV/8, 5*self.refV/8]
-        newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 8 * noise
+        # u: [9*self.refV/10, 11*self.refV/10]
+        newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 10 * noise
         # v: [-self.refV/8, self.refV/8]
         newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * self.refV / 8 * noise
         # omega: [-1, 1]
@@ -171,15 +171,15 @@ class TrackingEnv(gym.Env):
         # TODO: design reward
         if MPCflag == 0 :
             reward = \
-                torch.pow(state[:, -3] - state[:, 3], 2) +\
-                torch.pow(state[:, -2] - state[:, 4], 2) +\
+                5 * torch.pow(state[:, -3] - state[:, 3], 2) +\
+                5 * torch.pow(state[:, -2] - state[:, 4], 2) +\
                 10 * torch.pow(state[:, -1] - state[:, 5], 2) +\
                 5 * torch.pow(control[:, 0], 2) +\
                 10 * torch.pow(control[:, 1], 2)
         else:
             reward = \
-                pow(state[-3] - state[3], 2) +\
-                pow(state[-2] - state[4], 2) +\
+                5 * pow(state[-3] - state[3], 2) +\
+                5 * pow(state[-2] - state[4], 2) +\
                 10 * pow(state[-1] - state[5], 2) +\
                 5 * pow(control[0], 2) +\
                 10 * pow(control[1], 2)
