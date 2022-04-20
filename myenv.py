@@ -43,8 +43,8 @@ class TrackingEnv(gym.Env):
         # action space
         # u = [acc, delta]
         # If you modify the range, you must modify the output range of Actor.
-        self.actionLow = [-2, -0.3]
-        self.actionHigh = [2, 0.3]
+        self.actionLow = [-0.2, -0.3]
+        self.actionHigh = [0.2, 0.3]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
                        high=np.array(self.actionHigh), dtype=np.float64)
@@ -76,7 +76,7 @@ class TrackingEnv(gym.Env):
         newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * noise
         # x, y, phi
         newState[:, -3:-1] = torch.zeros((stateNum,2))
-        newState[:, -1] = torch.ones(stateNum) * 0
+        newState[:, -1] = torch.zeros(stateNum)
         # [xr, yr, phir]
         newState[:, 3:-3] = self.referenceFind(newState[:, -3:], noise=noise)
         if MPCflag == 0:

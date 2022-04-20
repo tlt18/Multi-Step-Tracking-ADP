@@ -8,7 +8,7 @@ PI = 3.1415926
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.tensor([2, 0.3])
+        self._out_gain = torch.tensor([0.2, 0.3])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         #TODO: 选择更加合理的参数
