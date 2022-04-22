@@ -90,18 +90,20 @@ class TrackingEnv(gym.Env):
         # output: N steps reference point
         if MPCflag == 0:
             refState = torch.empty((state.size(0), 3 * self.refNum))
-            # +- self.refV * self.T * 1.5
-            refState[:, 0] = state[:, 0] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.5 * noise
-            refState[:, 1] = state[:, 1] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.5 * noise
-            # +-pi/10
-            refState[:, 2] = state[:, 2] + 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 10 * noise
+            # +- self.refV * self.T * 0.4
+            refState[:, 0] = state[:, 0] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 0.4 * noise
+            refState[:, 1] = state[:, 1] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 0.4 * noise
+            # +-pi/20
+            refState[:, 2] = state[:, 2] + 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 20 * noise
             # refState[:, 2] = torch.normal(state[:, 2], 0.05 / 2 * noise)
             for i in range(1, self.refNum):
                 # index of [x, y, phi]: 3 * i, 3 * i + 1, 3 * i + 2
                 randL = self.refV * self.T
-                deltaphi = 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 10 * noise
+                # +-pi/20
+                deltaphi = 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 20 * noise
                 refState[:, 3 * i + 2] = refState[:, 3 * i - 1] + deltaphi
-                refphi = refState[:, 3 * i - 1] + 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 10 * noise
+                # +-pi/20
+                refphi = refState[:, 3 * i - 1] + 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 20 * noise
                 refState[:, 3 * i] = refState[:, 3 * i - 3] + torch.cos(refphi) * randL
                 refState[:, 3 * i + 1] = refState[:, 3 * i - 2] + torch.sin(refphi) * randL
         else:
@@ -171,18 +173,18 @@ class TrackingEnv(gym.Env):
         # TODO: design reward
         if MPCflag == 0 :
             reward = \
-                5 * torch.pow(state[:, -3] - state[:, 3], 2) +\
-                5 * torch.pow(state[:, -2] - state[:, 4], 2) +\
+                10 * torch.pow(state[:, -3] - state[:, 3], 2) +\
+                10 * torch.pow(state[:, -2] - state[:, 4], 2) +\
                 10 * torch.pow(state[:, -1] - state[:, 5], 2) +\
-                5 * torch.pow(control[:, 0], 2) +\
-                10 * torch.pow(control[:, 1], 2)
+                2 * torch.pow(control[:, 0], 2) +\
+                2 * torch.pow(control[:, 1], 2)
         else:
             reward = \
-                5 * pow(state[-3] - state[3], 2) +\
-                5 * pow(state[-2] - state[4], 2) +\
+                10 * pow(state[-3] - state[3], 2) +\
+                10 * pow(state[-2] - state[4], 2) +\
                 10 * pow(state[-1] - state[5], 2) +\
-                5 * pow(control[0], 2) +\
-                10 * pow(control[1], 2)
+                2 * pow(control[0], 2) +\
+                2 * pow(control[1], 2)
         return reward
 
 

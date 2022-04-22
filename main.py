@@ -11,6 +11,7 @@ from config import trainConfig
 from myenv import TrackingEnv
 from network import Actor, Critic
 from train import Train
+import simulation
 
 # mode setting
 isTrain = True
@@ -83,3 +84,5 @@ if isTrain:
             train.saveDate(log_dir+'/train')
             # env.policyRender(policy)
         iterarion += 1
+    
+simulation.main(log_dir)

@@ -412,9 +412,9 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
+    print("----------------------Start Solving!----------------------")
     for mpcstep in MPCStep:
-        print("----------------------Start Solving!----------------------")
-        print("MPCStep: {}".format(mpcstep))
+        # print("MPCStep: {}".format(mpcstep))
         tempstate = initialState[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # [x,y,phi,u,v,omega]
         refStateMpc = tempstate[3:-3]
@@ -619,11 +619,11 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False):
         plt.close()
     return relativeErrorMean, relativeErrorMax
 
-if __name__ == '__main__':
+def main(ADP_dir):
     config = MPCConfig()
     MPCStep = config.MPCStep
     # 检查一下reward是否一样
-    ADP_dir = './Results_dir/2022-04-20-10-29-48'
+    
     # 1. 真实时域中MPC表现
     # MPC参考点更新按照真实参考轨迹
     # 测试MPC跟踪性能
@@ -642,14 +642,25 @@ if __name__ == '__main__':
     # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
 
     # 4. 真实时域ADP、MPC应用
-    # simu_dir = ADP_dir + '/simulationReal' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     simu_dir = ADP_dir + '/simulationReal'
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir)
 
     # 5. 虚拟时域ADP、MPC应用
-    # simu_dir = ADP_dir + '/simulationVirtual' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
-    seed = 0
-    simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+
+    for seed in range(100):
+        print('seed={}'.format(seed))
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0.5, seed = seed)
+
+    errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
+    print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
+    print('Mean Steering Angle Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,2])*100,np.mean(errorList[:,3])*100))
+    print('Mean Distance Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,4])*100,np.mean(errorList[:,5])*100))
+    print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
+    print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
+
+if __name__ == '__main__':
+    ADP_dir = './Results_dir/2022-04-21-15-12-31'
+    main(ADP_dir)

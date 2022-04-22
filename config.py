@@ -13,7 +13,7 @@ class trainConfig():
         self.stepForwardPEV = 20
         self.gammar = 0.95
 
-        self.lifeMax = 20
+        self.lifeMax = 40
         self.batchSize = 256
 
 
@@ -21,7 +21,7 @@ class vehicleDynamic():
     def __init__(self):
         # 参考速度
         self.refV = 5
-        self.curveK = 1/10
+        self.curveK = 1/6
         self.curveA = 1
         # self.curveK = 1/5
         # self.curveA = 2
@@ -43,7 +43,7 @@ class vehicleDynamic():
         self.testStepVirtual = 40
         self.testSampleNum = 100
         self.renderStep = 100
-        self.refNum = 2
+        self.refNum = 3
 
 class MPCConfig():
     def __init__(self):
