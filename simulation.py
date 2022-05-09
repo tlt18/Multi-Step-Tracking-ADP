@@ -173,7 +173,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir,seed=0):
     yADP = - (stateADPList[:,2] - stateADPList[:,5]) * np.sin(stateADPList[:,7]) + (stateADPList[:,3] - stateADPList[:,6]) * np.cos(stateADPList[:,7])
     yMPC = [- (mpc[:,2] - mpc[:,5]) * np.sin(mpc[:,7]) + (mpc[:,3] - mpc[:,6]) * np.cos(mpc[:,7]) for mpc in stateMPCAll]
     xName = 'Travel dist [m]'
-    yName = 'Lateral position error[m]'
+    yName = 'Lateral position error [m]'
     title = 'lateral-error-x'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isError = True)
 
@@ -492,7 +492,7 @@ def  simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False):
     plt.close()
     figure = plt.figure()
     ax = Axes3D(figure)
-    surf = ax.plot_surface(X, Y, valueGridADP - valueGridMPC, rstride=1,cstride=1,cmap='rainbow')
+    surf = ax.plot_surface(X, Y, np.abs(valueGridADP - valueGridMPC), rstride=1,cstride=1,cmap='rainbow')
     ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
     ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
     ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))

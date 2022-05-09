@@ -246,18 +246,13 @@ class TrackingEnv(gym.Env):
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 1))
         saveADP = np.concatenate((stateADP, controlADP), 1) # [v, omega, x, y, phi, xr, yr, phir, delta]
-        # with open(log_dir + "/Real_state"+str(iteration)+".csv", 'wb') as f:
         with open(log_dir + "/Real_last_state.csv", 'wb') as f:
             np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v, omega, x, y, phi, xr, yr, phir, delta")
         plt.figure()
         plt.scatter(stateADP[:, 2], stateADP[:, 3], color='red', s=0.5)
         plt.scatter(stateADP[:, 5], stateADP[:, 6], color='gray', s=0.5)
-        # plt.scatter(stateADP[:, -3], stateADP[:, -2],  s=20, c='red', marker='*')
-        # plt.scatter(stateADP[:, 3], stateADP[:, 4], c='gray', s = 20, marker='+')
         plt.legend(labels = ['ADP', 'reference'])
-        # plt.axis('equal')
         plt.title('iteration:'+str(iteration))
-        # plt.savefig(log_dir + '/Real_iteration'+str(iteration)+'.png')
         plt.savefig(log_dir + '/Real_last_iteration.png')
         plt.close()
         return rewardSum
@@ -281,18 +276,15 @@ class TrackingEnv(gym.Env):
             count += 1
         stateADP = np.reshape(stateADP, (-1, self.stateDim))
         controlADP = np.reshape(controlADP, (-1, 1))
-        saveADP = np.concatenate((stateADP, controlADP), 1) # [x, y, phi, v, omega, xr, yr, phir, delta]
+        saveADP = np.concatenate((stateADP, controlADP), 1) # [v, omega, x, y, phi, xr, yr, phir, delta]
         if isPlot == True:
-            # with open(log_dir + "/Virtual_state"+str(iteration)+".csv", 'wb') as f:
             with open(log_dir + "/Virtual_last_state.csv", 'wb') as f:
                 np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="v, omega, x, y, phi, xr, yr, phir, delta")
             plt.figure()
             plt.scatter(stateADP[:, 2], stateADP[:, 3],  s=20, c='red', marker='*')
             plt.scatter(stateADP[:, 5], stateADP[:, 6], c='gray', s = 20, marker='+')
             plt.legend(labels = ['ADP', 'reference'])
-            # plt.axis('equal')
             plt.title('iteration:'+str(iteration))
-            # plt.savefig(log_dir + '/Virtual_iteration'+str(iteration)+'.png')
             plt.savefig(log_dir + '/Virtual_last_iteration.png')
             plt.close()
         return rewardSum
