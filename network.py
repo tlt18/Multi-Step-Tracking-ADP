@@ -11,8 +11,6 @@ class Actor(nn.Module):
         self._out_gain = torch.tensor([2, 0.3])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
-        #TODO: 选择更加合理的参数
-        # 相当于手动选择特征、归一化等等
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
         
         self.layers = nn.Sequential(
@@ -22,9 +20,9 @@ class Actor(nn.Module):
             nn.ELU(),
             nn.Linear(256, 256),
             nn.ELU(),
-            nn.Linear(256, 256),  # 新加
+            nn.Linear(256, 256),
             nn.ELU(),
-            nn.Linear(256, 256),  # 新加
+            nn.Linear(256, 256),
             nn.ELU(),
             nn.Linear(256, outputSize),
             nn.Tanh()
@@ -35,8 +33,6 @@ class Actor(nn.Module):
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.opt, step_size = 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
-        # zeros state value
-        self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])
 
     def forward(self, x):
         temp = torch.mul(x, self._norm_matrix)
@@ -80,20 +76,13 @@ class Critic(nn.Module):
             nn.Linear(256, 256),
             nn.ELU(),
             nn.Linear(256, outputSize),
-            # nn.Softplus()
-            # nn.ReLU()
         )
-        # self._norm_matrix = 0.1 * \
-        #     torch.tensor([2, 5, 10, 10], dtype=torch.float32)
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
         # initial optimizer
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.opt, 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
-        # zeros state value
-        # self._zero_state = torch.zeros(inputSize)
-        self._zero_state = torch.tensor([5, 0, 0, 0, 0, 0])
 
     def forward(self, x):
         x = torch.mul(x, self._norm_matrix)
@@ -117,3 +106,7 @@ class Critic(nn.Module):
             if isinstance(m, nn.Linear):
                 init.xavier_uniform_(m.weight)
                 init.constant_(m.bias, 0.0)
+        for name, module in self.layers.named_children():
+            if name in ['6']: # 将倒数第一层的权重设为0，网络正常训练
+                module.weight.data = module.weight.data * 0.0001
+                # module.bias.data = torch.zeros_like(module.bias)

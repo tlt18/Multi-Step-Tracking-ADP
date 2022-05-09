@@ -44,8 +44,8 @@ class Solver():
         self.F = Function("F", [state, action], [stateNextt])
 
         refState = SX.sym('refState',3 * self.env.refNum)
-        cost = 10 * pow(state[0] - refState[0], 2) +\
-            10 * pow(state[1] - refState[1], 2) +\
+        cost = 15 * pow(state[0] - refState[0], 2) +\
+            15 * pow(state[1] - refState[1], 2) +\
             10 * pow(state[2] - refState[2], 2) +\
             2 * pow(action[0], 2) +\
             2 * pow(action[1], 2) # 

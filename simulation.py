@@ -12,7 +12,7 @@ from myenv import TrackingEnv
 from network import Actor, Critic
 from solver import Solver
 
-def simulationMPC(MPCStep, simu_dir):
+def simulationMPC(MPCStep, simu_dir, curveType = 'sine'):
     # 测试MPC跟踪性能
     env = TrackingEnv()
     env.seed(0)
@@ -36,7 +36,7 @@ def simulationMPC(MPCStep, simu_dir):
         plt.plot(x, y, color='gray')
         controlMPC = np.empty(0)
         stateMPC = np.empty(0)
-        while(count < env.testStepReal):
+        while(count < env.testStepReal[curveType]):
             _, control = solver.MPCSolver(state, refState, mpcstep, isReal = True)
             stateMPC = np.append(stateMPC, np.array(state))
             stateMPC = np.append(stateMPC, np.array(refState))
@@ -50,7 +50,7 @@ def simulationMPC(MPCStep, simu_dir):
             # plt.pause(0.05)
             count += 1
             if count % 10 == 0:
-                print('count/totalStep: {}/{}'.format(count, env.testStepReal))
+                print('count/totalStep: {}/{}'.format(count, env.testStepReal[curveType]))
         plt.title('MPCStep:'+str(mpcstep))
         plt.savefig(simu_dir + '/OnlyMPCStep'+str(mpcstep)+'.png')
         # plt.ioff()
@@ -168,7 +168,8 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
         plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_delta.png')
         plt.close()
 
-def simulationReal(MPCStep, ADP_dir, simu_dir):
+def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
+    print("----------------------Curve Type: {}----------------------".format(curveType))
     plotDelete = 0
     # 真实时域ADP、MPC应用
     env = TrackingEnv()
@@ -180,7 +181,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
     solver = Solver()
-    initialState = env.resetSpecificCurve(1, curveType = 'sine', noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
+    initialState = env.resetSpecificCurve(1, curveType, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
 
     # ADP
     stateAdp = initialState.clone()
@@ -188,12 +189,12 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
     count = 0
-    while(count < env.testStepReal):
+    while(count < env.testStepReal[curveType]):
         stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy()) # x, y, phi
         stateADPList = np.append(stateADPList, stateAdp[0, :-3].numpy()) # u, v, omega, [xr, yr, phir]
         relState = env.relStateCal(stateAdp)
         controlAdp = policy(relState).detach()
-        stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = 'sine')
+        stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = curveType)
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
         count += 1
@@ -213,8 +214,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     stateMPCAll = []
     rewardMPCAll = []
     for mpcstep in MPCStep:
-        print("----------------------Start Solving!----------------------")
-        print("MPCStep: {}".format(mpcstep))
+        print("Start Solving MPC-{}!".format(mpcstep))
         tempstate = initialState[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
@@ -222,7 +222,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
-        while(count < env.testStepReal):
+        while(count < env.testStepReal[curveType]):
             # MPC
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
@@ -231,7 +231,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
             reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
             stateMpc = env.vehicleDynamic(
                 stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
-            refStateMpc = env.refDynamicReal(refStateMpc, MPCflag=1, curveType = 'sine')
+            refStateMpc = env.refDynamicReal(refStateMpc, MPCflag=1, curveType=curveType)
             rewardMPC = np.append(rewardMPC, reward)
             controlMPCList = np.append(controlMPCList, control[0])
             count += 1
@@ -247,7 +247,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
-        # print("Overall Cost for {} Steps, MPC: {:.3f}, ADP: {:.3f}".format(env.testStepReal, rewardMPC, rewardADP.item()))
 
     # stateADPList: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlMPCAll: [a, delta]
@@ -371,7 +370,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir):
     
  
 def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
-    # 真实时域ADP、MPC应用
+    # 虚拟时域ADP、MPC应用
+    print("----------------------Start Solving! seed: {}----------------------".format(seed))
     plotDelete = 0
     env = TrackingEnv()
     env.seed(seed)
@@ -412,7 +412,6 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
-    print("----------------------Start Solving!----------------------")
     for mpcstep in MPCStep:
         # print("MPCStep: {}".format(mpcstep))
         tempstate = initialState[0].tolist()
@@ -495,8 +494,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     
     # Plot [x,y,phi,u,v,omega,[xr,yr,phir]]
     # a v.s. t
-    xADP = np.arange(0, len(controlADPList[:,0]) * env.T, env.T)
-    xMPC = [np.arange(0, len(mpc[:,0]) * env.T, env.T) for mpc in controlMPCAll]
+    xADP = np.arange(0, len(controlADPList[:,0])) * env.T
+    xMPC = [np.arange(0, len(mpc[:,0])) * env.T for mpc in controlMPCAll]
     yADP = controlADPList[:,0]
     yMPC = [mpc[:,0] for mpc in controlMPCAll]
     xName = 'Predictive horizon [s]'
@@ -505,8 +504,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
 
     # delta v.s. t
-    xADP = np.arange(0, len(controlADPList[:,0]) * env.T, env.T)
-    xMPC = [np.arange(0, len(mpc[:,1]) * env.T, env.T) for mpc in controlMPCAll]
+    xADP = np.arange(0, len(controlADPList[:,0])) * env.T
+    xMPC = [np.arange(0, len(mpc[:,1])) * env.T for mpc in controlMPCAll]
     yADP = controlADPList[:,1]
     yMPC = [mpc[:,1] for mpc in controlMPCAll]
     xName = 'Predictive horizon [s]'
@@ -517,8 +516,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # distance error v.s. t
     yADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))
     yMPC = [np.sqrt(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2)) for mpc in stateMPCAll]
-    xADP = np.arange(0, len(yADP) * env.T, env.T)
-    xMPC = [np.arange(0, len(mpc) * env.T, env.T) for mpc in yMPC]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
     xName = 'Predictive horizon [s]'
     yName = 'Distance error [m]'
     title = 'distance-error-t'
@@ -527,8 +526,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # phi error v.s. t
     yADP = (stateADPList[:,2] - stateADPList[:,8]) * 180 / np.pi
     yMPC = [(mpc[:,2] - mpc[:,8]) * 180 / np.pi for mpc in stateMPCAll]
-    xADP = np.arange(0, len(yADP) * env.T, env.T)
-    xMPC = [np.arange(0, len(mpc) * env.T, env.T) for mpc in yMPC]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
     xName = 'Predictive horizon [s]'
     yName = 'Heading angle error [m]'
     title = 'phi-error-t'
@@ -557,8 +556,8 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # utility v.s. t
     yADP = rewardADP
     yMPC = [mpc for mpc in rewardMPCAll]
-    xADP = np.arange(0, len(yADP) * env.T, env.T)
-    xMPC = [np.arange(0, len(mpc) * env.T, env.T) for mpc in yMPC]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
     xName = 'Predictive horizon [s]'
     yName = 'utility'
     title = 'utility-t'
@@ -641,19 +640,30 @@ def main(ADP_dir):
     # os.makedirs(simu_dir, exist_ok=True)
     # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
 
-    # 4. 真实时域ADP、MPC应用
-    simu_dir = ADP_dir + '/simulationReal'
+    # # 4. 真实时域ADP、MPC应用
+    simu_dir = ADP_dir + '/simulationReal/sine'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine')
 
-    # 5. 虚拟时域ADP、MPC应用
+    simu_dir = ADP_dir + '/simulationReal/DLC'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC')
+
+    simu_dir = ADP_dir + '/simulationReal/TurnLeft'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft')
+
+    simu_dir = ADP_dir + '/simulationReal/TurnRight'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight')
+
+    # # 5. 虚拟时域ADP、MPC应用
     simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
-
     for seed in range(100):
-        print('seed={}'.format(seed))
-        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0.5, seed = seed)
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
 
+    print("-"*100)
     errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
     print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
     print('Mean Steering Angle Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,2])*100,np.mean(errorList[:,3])*100))
@@ -662,5 +672,5 @@ def main(ADP_dir):
     print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-21-15-12-31'
+    ADP_dir = './Results_dir/2022-04-23-18-01-49'
     main(ADP_dir)

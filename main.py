@@ -15,6 +15,7 @@ import simulation
 
 # mode setting
 isTrain = True
+isSimu = True
 
 # parameters setting
 config = trainConfig()
@@ -67,7 +68,10 @@ if isTrain:
             print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:10f}, policy lr: {:10f}".format(
                 iterarion, train.lossValue[-1], train.lossPolicy[-1], value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
         if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
-            env.policyTestReal(policy, iterarion, log_dir+'/train')
+            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'sine')
+            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'DLC')
+            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnLeft')
+            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnRight')
             env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1)
             rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1, isPlot = False)
             print("Accumulated Reward in virtual time is {:.4f}".format(rewardSum))
@@ -84,5 +88,6 @@ if isTrain:
             train.saveDate(log_dir+'/train')
             # env.policyRender(policy)
         iterarion += 1
-    
-simulation.main(log_dir)
+
+if isSimu: 
+    simulation.main(log_dir)

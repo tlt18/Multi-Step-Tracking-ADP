@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 class trainConfig():
     def __init__(self):
@@ -13,18 +14,21 @@ class trainConfig():
         self.stepForwardPEV = 20
         self.gammar = 0.95
 
-        self.lifeMax = 40
+        self.lifeMax = 20
         self.batchSize = 256
 
 
 class vehicleDynamic():
     def __init__(self):
-        # 参考速度
         self.refV = 5
+        # y_r = curveA * sin(curveK * x_r)
         self.curveK = 1/6
         self.curveA = 1
-        # self.curveK = 1/5
-        # self.curveA = 2
+        # Double lane chang
+        self.DLCh = 2
+        self.DLCa = 25
+        self.DLCb = 30
+        self.curvePhi = np.pi/60
 
         # 车辆参数
         # TODO: 参数是否合理？
@@ -38,8 +42,7 @@ class vehicleDynamic():
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
-
-        self.testStepReal = 200
+        self.testStepReal = {'sine': 200, 'DLC': 300, 'TurnLeft': 30, 'TurnRight': 30}
         self.testStepVirtual = 40
         self.testSampleNum = 100
         self.renderStep = 100
