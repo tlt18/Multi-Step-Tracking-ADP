@@ -23,12 +23,13 @@ class Solver():
         action = SX.sym('action', self.actionDim)
         # 替换model
         self.T = 0.1  # 时间间隔
-        self.m = 1520  # 自车质量
-        self.a = 1.19  # 质心到前轴的距离
-        self.b = 1.46  # 质心到后轴的距离
+        self.m = 2080  # 自车质量
+        self.a = 1.425  # 质心到前轴的距离
+        self.b = 1.425  # 质心到后轴的距离
         self.kf = -155495  # 前轮总侧偏刚度
         self.kr = -155495  # 后轮总侧偏刚度
-        self.Iz = 2642  # 转动惯量
+        self.Iz = 4224  # 转动惯量
+
         # state = [v, omega, x, y, phi]
         stateNextt = vertcat(
             (-(self.a * self.kf - self.b * self.kr) * state[1] + self.kf * action[0] * self.env.refV +

@@ -29,12 +29,12 @@ class vehicleDynamic():
         # 车辆参数
         # TODO: 参数是否合理？
         self.T = 0.1  # 时间间隔
-        self.m = 1520  # 自车质量
-        self.a = 1.19  # 质心到前轴的距离
-        self.b = 1.46  # 质心到后轴的距离
+        self.m = 2080  # 自车质量
+        self.a = 1.425  # 质心到前轴的距离
+        self.b = 1.425  # 质心到后轴的距离
         self.kf = -155495  # 前轮总侧偏刚度
         self.kr = -155495  # 后轮总侧偏刚度
-        self.Iz = 2642  # 转动惯量
+        self.Iz = 4224  # 转动惯量
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
