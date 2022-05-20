@@ -573,23 +573,23 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # check reward
-    ADP_dir = './Results_dir/2022-04-13-17-31-23'
+    ADP_dir = './Results_dir/2022-05-11-20-48-35'
     # # 1. Apply in real time
-    # simu_dir = ADP_dir + '/simulationReal'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # for seed in range(1):
-    #     print('seed = {}'.format(seed))
-    #     simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
+    simu_dir = ADP_dir + '/simulationReal'
+    os.makedirs(simu_dir, exist_ok=True)
+    for seed in range(1):
+        print('seed = {}'.format(seed))
+        simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
 
     # # 2. Apply in virtual time
-    # simu_dir = ADP_dir + '/simulationVirtual'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # # for seed in range(100):
-    # for seed in [5]:
-    #     print('seed = {}'.format(seed))
-    #     simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+    simu_dir = ADP_dir + '/simulationVirtual'
+    os.makedirs(simu_dir, exist_ok=True)
+    # for seed in range(100):
+    for seed in range(100):
+        print('seed = {}'.format(seed))
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
 
     # # 3. Value
     simu_dir = ADP_dir + '/simulationValue'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = True)
+    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False)

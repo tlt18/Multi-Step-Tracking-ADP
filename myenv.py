@@ -136,7 +136,7 @@ class TrackingEnv(gym.Env):
         if MPCflag == 0:
             deltaL = -(state[:, 2] - state[:, 5]) * torch.sin(state[:, 7]) + (state[:, 3] - state[:, 6]) * torch.cos(state[:, 7])
             deltaphi = state[:, 4] - state[:, 7]
-            reward = torch.pow(deltaL, 2) + 10 * torch.pow(deltaphi, 2) + 10 * torch.pow(control[:, 0], 2)
+            reward = 15 * torch.pow(deltaL, 2) + 10 * torch.pow(deltaphi, 2) + 2 * torch.pow(control[:, 0], 2)
         else:
             return self.calReward(torch.tensor([state]), torch.tensor([control]), MPCflag=0)[0].tolist()
         return reward
