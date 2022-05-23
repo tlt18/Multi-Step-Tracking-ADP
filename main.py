@@ -72,6 +72,7 @@ if isTrain:
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'DLC')
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnLeft')
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnRight')
+            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'RandomTest')
             env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1)
             rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1, isPlot = False)
             print("Accumulated Reward in virtual time is {:.4f}".format(rewardSum))

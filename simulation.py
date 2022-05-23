@@ -168,12 +168,12 @@ def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
         plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_delta.png')
         plt.close()
 
-def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
+def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     print("----------------------Curve Type: {}----------------------".format(curveType))
     plotDelete = 0
     # 真实时域ADP、MPC应用
     env = TrackingEnv()
-    env.seed(0)
+    env.seed(seed)
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
     policy = Actor(relstateDim, actionDim)
@@ -188,12 +188,17 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
     controlADPList = np.empty(0)
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
+    timeADP = np.empty(0)
     count = 0
     while(count < env.testStepReal[curveType]):
         stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy()) # x, y, phi
         stateADPList = np.append(stateADPList, stateAdp[0, :-3].numpy()) # u, v, omega, [xr, yr, phir]
         relState = env.relStateCal(stateAdp)
-        controlAdp = policy(relState).detach()
+        start = time.clock()
+        controlAdp = policy(relState)
+        end = time.clock()
+        timeADP = np.append(timeADP, end - start)
+        controlAdp = controlAdp.detach()
         stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = curveType)
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
@@ -213,7 +218,9 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
+    timeMPCAll = []
     for mpcstep in MPCStep:
+        env.randomTestReset()
         print("Start Solving MPC-{}!".format(mpcstep))
         tempstate = initialState[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
@@ -222,9 +229,13 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
+        timeMPC = np.empty(0)
         while(count < env.testStepReal[curveType]):
             # MPC
+            start = time.clock()
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+            end = time.clock()
+            timeMPC = np.append(timeMPC, end - start)
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
             stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
             action = control[0].tolist()
@@ -247,7 +258,9 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
-
+        timeMPCAll.append(timeMPC)
+    
+    print("One Step Time ADP:{}, MPC:{}".format(timeADP.mean(), timeMPCAll[-1].mean()))
     # stateADPList: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlMPCAll: [a, delta]
     # Cal relative error
@@ -298,81 +311,145 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine'):
     # Plot
     # stateAll: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlAll: [a, delta]
+    figSize = (20,5)
     # y v.s. x
     xADP = stateADPList[:,0]
     xMPC = [mpc[:,0] for mpc in stateMPCAll]
+    xRef = stateADPList[:,6]
     yADP = stateADPList[:,1]
     yMPC = [mpc[:,1] for mpc in stateMPCAll]
+    yRef = stateADPList[:,7]
     xName = 'x position [m]'
     yName = 'y position [m]'
     title = 'y-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, figSize=figSize, lineWidth = 2)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, lineWidth = 2)
 
-    # distance error v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
+    # distance error v.s. t
     yADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))
     yMPC = [np.sqrt(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2)) for mpc in stateMPCAll]
-    xName = 'Travel dist [m]'
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'Distance error [m]'
-    title = 'distance-error-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isError = True)
+    title = 'distance-error-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-    # phi v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
+    # x error v.s. t
+    yADP = stateADPList[:, 0] - stateADPList[:, 6]
+    yMPC = [mpc[:, 0] - mpc[:, 6] for mpc in stateMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
+    yName = 'x position error [m]'
+    title = 'x-error-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+
+    # y error v.s. t
+    yADP = stateADPList[:, 1] - stateADPList[:, 7]
+    yMPC = [mpc[:, 1] - mpc[:, 7] for mpc in stateMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
+    yName = 'y position error [m]'
+    title = 'y-error-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+
+    # phi v.s. t
     yADP = stateADPList[:,2] * 180/np.pi
     yMPC = [mpc[:,2] * 180/np.pi for mpc in stateMPCAll]
-    xName = 'Travel dist [m]'
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'Heading angle [°]'
-    title = 'phi-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    title = 'phi-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-    # phi error v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
+    # phi error v.s. t
     yADP = stateADPList[:,2] * 180/np.pi - stateADPList[:,8] * 180/np.pi
     yMPC = [mpc[:,2] * 180/np.pi - mpc[:,8] * 180/np.pi for mpc in stateMPCAll]
-    xName = 'Travel dist [m]'
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'Heading angle error [°]'
-    title = 'phi-error-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isError = True)
+    title = 'phi-error-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-    # utility v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
+    # utility v.s. t
     yADP = rewardADP
     yMPC = [mpc for mpc in rewardMPCAll]
-    xName = 'Travel dist [m]'
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'utility'
-    title = 'utility-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    title = 'utility-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-    # a v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
-    yADP = controlADPList[:,0] * 180/np.pi
-    yMPC = [mpc[:,0] * 180/np.pi for mpc in controlMPCAll]
-    xName = 'Travel dist [m]'
+    # accumulated utility v.s. t
+    yADP = np.cumsum(rewardADP)
+    yMPC = [np.cumsum(mpc) for mpc in rewardMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
+    yName = 'accumulated utility'
+    title = 'accumulated-utility-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    print('Accumulated utility of ADP {:.4f}% higher than MPC'.format((yADP[-1]-yMPC[-1][-1])/yMPC[-1][-1]*100))
+
+    # a v.s. t
+    yADP = controlADPList[:,0]
+    yMPC = [mpc[:,0] for mpc in controlMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'Acceleration [m/s^2]'
-    title = 'a-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    title = 'a-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-    # delta v.s. x
-    xADP = stateADPList[:,0]
-    xMPC = [mpc[:,0] for mpc in stateMPCAll]
+
+    # delta v.s. t
     yADP = controlADPList[:,1] * 180/np.pi
     yMPC = [mpc[:,1] * 180/np.pi for mpc in controlMPCAll]
-    xName = 'Travel dist [m]'
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Travel time [s]'
     yName = 'Steering angle [°]'
-    title = 'delta-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
-    
+    title = 'delta-t'
+    if curveType == 'RandomTest':
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
+    else:
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
  
 def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # 虚拟时域ADP、MPC应用
     print("----------------------Start Solving! seed: {}----------------------".format(seed))
-    plotDelete = 0
+    plotDelete = 4
     env = TrackingEnv()
     env.seed(seed)
     relstateDim = env.relstateDim
@@ -439,7 +516,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
         controlMPCList = np.delete(controlMPCList, range(plotDelete), 0)
         rewardMPC = np.delete(rewardMPC, range(plotDelete), 0)
         saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
-        with open(simu_dir + "/simulationVirtualADP_"+str(mpcstep)+".csv", 'wb') as f:
+        with open(simu_dir + "/simulationVirtualMPC_"+str(mpcstep)+".csv", 'wb') as f:
             np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*env.refNum + "a,delta")
         rewardMPCAll.append(rewardMPC)
         stateMPCAll.append(stateMPCList)
@@ -506,10 +583,10 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # delta v.s. t
     xADP = np.arange(0, len(controlADPList[:,0])) * env.T
     xMPC = [np.arange(0, len(mpc[:,1])) * env.T for mpc in controlMPCAll]
-    yADP = controlADPList[:,1]
-    yMPC = [mpc[:,1] for mpc in controlMPCAll]
+    yADP = controlADPList[:,1] * 180 / np.pi
+    yMPC = [mpc[:,1] * 180 / np.pi for mpc in controlMPCAll]
     xName = 'Predictive horizon [s]'
-    yName = 'Steering Angle [m/s^2]'
+    yName = 'Steering Angle [°]'
     title = 'delta-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
 
@@ -529,7 +606,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
     xName = 'Predictive horizon [s]'
-    yName = 'Heading angle error [m]'
+    yName = 'Heading angle error [°]'
     title = 'phi-error-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
 
@@ -541,7 +618,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xName = 'Distance error [m]'
     yName = 'Heading angle error [°]'
     title = 'phi-error-Distance-error'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
 
     # y v.s. x
     xADP = stateADPList[:, 0]
@@ -563,18 +640,35 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     title = 'utility-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
 
-def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False):
-    plt.figure()
-    colorList = ['darkorange', 'green', 'blue', 'yellow', 'red']
+    # accumulated utility v.s. t
+    yADP = np.cumsum(rewardADP)
+    yMPC = [np.cumsum(mpc) for mpc in rewardMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Predictive horizon [s]'
+    yName = 'accumulated utility'
+    title = 'accumulated-utility-t'
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
+
+def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False, isRef = False, xRef = None, yRef = None, figSize = None, lineWidth = 2):
+    if figSize != None:
+        plt.figure(figsize=figSize, dpi=300)
+    else:
+        plt.figure()
+    colorList = ['darkorange', 'green', 'blue', 'red']
     if isMark == True:
-        markerList = ['|', 'D', 'o', 'x', '*']
+        markerList = ['|', 'D', 'o', '*']
     else:
         markerList = ['None', 'None', 'None', 'None']
     for i in range(len(xMPC)):
-        plt.plot(xMPC[i], yMPC[i], linewidth=2, color = colorList[i], linestyle = '--', marker=markerList[i], markersize=4)
-    plt.plot(xADP, yADP, linewidth = 2, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
+        plt.plot(xMPC[i], yMPC[i], linewidth=lineWidth, color = colorList[3 - len(xMPC) + i], linestyle = '--', marker=markerList[3 - len(xMPC) + i], markersize=4)
+
+    plt.plot(xADP, yADP , linewidth = lineWidth, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4, markevery=10)
     if isError == True:
-        plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = 1, color = 'grey', linestyle = '--')
+        plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = lineWidth/2, color = 'grey', linestyle = '-')
+        plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
+    elif isRef == True:
+        plt.plot(xRef, yRef, linewidth = lineWidth/2, color = 'gray', linestyle = '--')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
     else:
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP'])
@@ -582,6 +676,7 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
     plt.ylabel(yName)
     # plt.subplots_adjust(left=)
     plt.savefig(simu_dir + '/' + title + '.png', bbox_inches='tight')
+    plt.axis('scaled')
     plt.close()
 
 def animationPlot(state, refstate, xName, yName):
@@ -641,36 +736,42 @@ def main(ADP_dir):
     # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
 
     # # 4. 真实时域ADP、MPC应用
-    simu_dir = ADP_dir + '/simulationReal/sine'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine')
+    seed = 3
+    # simu_dir = ADP_dir + '/simulationReal/sine'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'sine', seed = seed)
 
-    simu_dir = ADP_dir + '/simulationReal/DLC'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC')
+    # simu_dir = ADP_dir + '/simulationReal/DLC'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
 
-    simu_dir = ADP_dir + '/simulationReal/TurnLeft'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft')
+    # simu_dir = ADP_dir + '/simulationReal/TurnLeft'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
 
-    simu_dir = ADP_dir + '/simulationReal/TurnRight'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight')
+    # simu_dir = ADP_dir + '/simulationReal/TurnRight'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
 
+    simu_dir = ADP_dir + '/simulationReal/RandomTest'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
+    
     # # 5. 虚拟时域ADP、MPC应用
-    simu_dir = ADP_dir + '/simulationVirtual'
-    os.makedirs(simu_dir, exist_ok=True)
-    for seed in range(100):
-        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+    # simu_dir = ADP_dir + '/simulationVirtual'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # # for seed in range(100):
+    # for seed in [1]:
+    #     simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
 
-    print("-"*100)
-    errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
-    print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
-    print('Mean Steering Angle Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,2])*100,np.mean(errorList[:,3])*100))
-    print('Mean Distance Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,4])*100,np.mean(errorList[:,5])*100))
-    print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
-    print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
+    # print("-"*100)
+    # errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
+    # print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
+    # print('Mean Steering Angle Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,2])*100,np.mean(errorList[:,3])*100))
+    # print('Mean Distance Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,4])*100,np.mean(errorList[:,5])*100))
+    # print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
+    # print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-04-23-18-01-49'
+    ADP_dir = './Results_dir/2022-05-20-10-45-51'
     main(ADP_dir)

@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import torch
 
 class trainConfig():
     def __init__(self):
@@ -25,9 +26,9 @@ class vehicleDynamic():
         self.curveK = 1/6
         self.curveA = 1
         # Double lane chang
-        self.DLCh = 2
-        self.DLCa = 25
-        self.DLCb = 30
+        self.DLCh = 3.5
+        self.DLCa = 30
+        self.DLCb = 50
         self.curvePhi = np.pi/60
 
         # 车辆参数
@@ -42,7 +43,7 @@ class vehicleDynamic():
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
-        self.testStepReal = {'sine': 200, 'DLC': 300, 'TurnLeft': 30, 'TurnRight': 30}
+        self.testStepReal = {'sine': 200, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500}
         self.testStepVirtual = 40
         self.testSampleNum = 100
         self.renderStep = 100
@@ -53,6 +54,4 @@ class MPCConfig():
         self.MPCStep = [10, 30, 60]
         config = trainConfig()
         self.gammar = config.gammar
-        # self.MPCStep = [205, 210, 220, 240]
-        # self.MPCStep = [100]
 

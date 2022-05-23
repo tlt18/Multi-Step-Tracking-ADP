@@ -96,16 +96,27 @@ class Train():
         with open(log_dir + "/loss.csv", 'wb') as f:
             np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
 
-        fig = plt.figure()
-        ax = fig.add_subplot()
-        ax.plot(range(len(self.lossValue)), self.lossValue, color = 'blue', label = 'Value Loss')
-        ax.yscale('log')
-        ax.set_xlabel('iteration')
-        ax.set_ylabel('Value Loss')
-        ax2 = ax.twinx()
-        ax2.plot(range(len(self.lossPolicy)), self.lossPolicy, color = 'orange', label = 'Policy Loss')
-        ax2.yscale('log')
-        ax2.set_ylabel('Policy Loss')
-        fig.legend(loc=1, bbox_to_anchor=(1,1), bbox_transform=ax.transAxes)
-        plt.savefig(log_dir + '/loss.png', bbox_inches='tight')
+
+        plt.figure()
+        plt.plot(range(len(self.lossValue)), self.smooth(self.lossValue, 0.6), color = 'blue', label = 'Value Loss')
+        plt.yscale('log')
+        plt.xlabel('iteration')
+        plt.ylabel('Value Loss')
+        plt.savefig(log_dir + '/loss_value.png', bbox_inches='tight')
         plt.close()
+
+        plt.plot(range(len(self.lossPolicy)), self.smooth(self.lossPolicy, 0.6), color = 'blue', label = 'Policy Loss')
+        plt.yscale('log')
+        plt.xlabel('iteration')
+        plt.ylabel('Policy Loss')
+        plt.savefig(log_dir + '/loss_policy.png', bbox_inches='tight')
+        plt.close()
+
+    def smooth(self, data, weight):
+        last = data[0]
+        smooth = []
+        for point in data:
+            smoothed = last * weight + point * (1 - weight)
+            smooth.append(smoothed)
+            last = smoothed
+        return smooth
