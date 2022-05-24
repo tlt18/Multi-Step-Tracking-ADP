@@ -1,7 +1,9 @@
+from cProfile import label
 import math
 import os
 import time
 from datetime import datetime
+from turtle import color
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -260,7 +262,42 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
         controlMPCAll.append(controlMPCList)
         timeMPCAll.append(timeMPC)
     
-    print("One Step Time ADP:{}, MPC:{}".format(timeADP.mean(), timeMPCAll[-1].mean()))
+    print("Time consume ADP: {}ms".format(timeADP.mean() * 1000))
+    for i in range(len(MPCStep)):
+        print("Time consume MPC-{}: {}ms".format(MPCStep[i], timeMPCAll[i].mean() * 1000))
+
+    colorList = ['darkorange', 'green', 'blue', 'red']
+    plt.figure()
+
+    pos = list(range(len(MPCStep) + 1))
+    plt.bar([p for p in pos], [timeADP.mean() * 1000]+[timempc.mean() * 1000 for timempc in timeMPCAll], 
+        width = 0.3,color = [colorList[-1]] + [colorList[i] for i in range(len(MPCStep))], 
+        label=['ADP'] + ['MPC-'+str(mpcstep) for mpcstep in MPCStep])
+    plt.xticks(range(len(MPCStep) + 1), ['ADP'] + ['MPC-'+str(mpcstep) for mpcstep in MPCStep])
+    for x,y in enumerate([timeADP.mean() * 1000]+[timempc.mean() * 1000 for timempc in timeMPCAll]):
+        plt.text(x, y,'%s ms' %round(y, 2), ha='center', va='bottom',fontsize=9)
+    # plt.bar(['ADP'] + ['MPC-'+str(mpcstep) for mpcstep in MPCStep], 
+    #     [timeADP.mean() * 1000]+[timempc.mean() * 1000 for timempc in timeMPCAll],
+    #     color = [colorList[-1]] + [colorList[i] for i in range(len(MPCStep))],
+    #     width=0.3)
+    plt.ylabel("Average calculation time [ms]")
+    plt.yscale('log')
+    plt.savefig(simu_dir + '/average-calculation-time.png', bbox_inches='tight')
+    # plt.title("Calculation time")
+    plt.close()
+
+    plt.figure()
+    for i in range(len(MPCStep)):
+        plt.plot(range(len(timeMPCAll[i])), timeMPCAll[i] * 1000, label = 'MPC-' + str(MPCStep[i]), color = colorList[i])
+    plt.plot(range(len(timeADP)), timeADP * 1000, label = 'ADP', color = colorList[-1])
+    plt.legend()
+    plt.ylabel("Calculation time [ms]")
+    plt.xlabel('Step')
+    plt.yscale('log')
+    # plt.title("Calculation time")
+    plt.savefig(simu_dir + '/calculation-time-step.png', bbox_inches='tight')
+    plt.close()
+
     # stateADPList: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlMPCAll: [a, delta]
     # Cal relative error
@@ -755,7 +792,7 @@ def main(ADP_dir):
 
     simu_dir = ADP_dir + '/simulationReal/RandomTest'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
     
     # # 5. 虚拟时域ADP、MPC应用
     # simu_dir = ADP_dir + '/simulationVirtual'
