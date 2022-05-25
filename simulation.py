@@ -376,7 +376,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xName = 'Lateral position error [m]'
     yName = 'Heading angle error [°]'
     title = 'phi-error-lateral-error'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
 
     # y v.s. x
     xADP = stateADPList[:, 2]
@@ -397,6 +397,16 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     yName = 'utility'
     title = 'utility-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True )
+
+    # accumulate utility v.s. t
+    yADP = np.cumsum(rewardADP)
+    yMPC = [np.cumsum(mpc) for mpc in rewardMPCAll]
+    xADP = np.arange(0, len(yADP) * env.T, env.T)
+    xMPC = [np.arange(0, len(mpc) * env.T, env.T) for mpc in yMPC]
+    xName = 'Predictive horizon [s]'
+    yName = 'accumulated utility'
+    title = 'accumulated utility-t'
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
 
 def  simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False):
     env = TrackingEnv()
@@ -582,14 +592,14 @@ if __name__ == '__main__':
     #     simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
 
     # # 2. Apply in virtual time
-    # simu_dir = ADP_dir + '/simulationVirtual'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # # for seed in range(100):
-    # for seed in [5]:
-    #     print('seed = {}'.format(seed))
-    #     simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+    simu_dir = ADP_dir + '/simulationVirtual'
+    os.makedirs(simu_dir, exist_ok=True)
+    # for seed in range(100):
+    for seed in [0]:
+        print('seed = {}'.format(seed))
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
 
     # # 3. Value
-    simu_dir = ADP_dir + '/simulationValue'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = True)
+    # simu_dir = ADP_dir + '/simulationValue'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = True)
