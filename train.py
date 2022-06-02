@@ -60,6 +60,7 @@ class Train():
         relState = self.env.relStateCal(stateNext)
         valueTaeget += (~done) * value(relState) * self.gammarForward
         valueTaeget = valueTaeget.detach()
+        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() * 1 + torch.pow(value(value._zero_state), 2).mean() * 0
         lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
         lossValue.backward()

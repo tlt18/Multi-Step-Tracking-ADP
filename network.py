@@ -61,7 +61,7 @@ class Actor(nn.Module):
             self.opt, step_size = 1000, gamma=0.95, last_epoch=-1)
         self._initializeWeights()
         # zeros state value
-        self._zero_state = torch.tensor([0.0, 0.0, 0.0, 0.0])
+        self._zero_state = torch.tensor([5.0, 0.0, 0.0, 1, 0.0])
 
     def forward(self, x):
         # temp = torch.mul(x, self._norm_matrix)
@@ -119,7 +119,7 @@ class Critic(nn.Module):
         self._initializeWeights()
         # zeros state value
         # self._zero_state = torch.zeros(inputSize)
-        self._zero_state = torch.tensor([5, 0, 0, 0, 0, 0])
+        self._zero_state = torch.tensor([5.0, 0.0, 0.0, 1.0, 0.0])
 
     def forward(self, x):
         # x = torch.mul(x, self._norm_matrix)
