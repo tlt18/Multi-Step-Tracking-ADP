@@ -356,34 +356,39 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     yADP = stateADPList[:,1]
     yMPC = [mpc[:,1] for mpc in stateMPCAll]
     yRef = stateADPList[:,7]
-    xName = 'x position [m]'
-    yName = 'y position [m]'
+    xName = 'X [m]'
+    yName = 'Y [m]'
     title = 'y-x'
     if curveType == 'RandomTest':
-        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, figSize=figSize, lineWidth = 2)
+        comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, figSize='equal', lineWidth = 2)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, lineWidth = 2)
 
     # distance error v.s. t
-    yADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))
-    yMPC = [np.sqrt(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2)) for mpc in stateMPCAll]
+    yADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))*100
+    yMPC = [np.sqrt(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2))*100 for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'Distance error [m]'
+    xName = '时间 [s]'
+    yName = '位置误差 [cm]'
     title = 'distance-error-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    Ip_ADP = np.sqrt(np.mean(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2)))
+    Ip_MPC = [np.sqrt(np.mean(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2))) for mpc in stateMPCAll]
+    print('Position error ADP: {}m'.format(Ip_ADP))
+    for i in range(len(MPCStep)):
+        print('Position error MPC-{}: {}m'.format(MPCStep[i], Ip_MPC[i]))
 
     # x error v.s. t
     yADP = stateADPList[:, 0] - stateADPList[:, 6]
     yMPC = [mpc[:, 0] - mpc[:, 6] for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'x position error [m]'
+    xName = '时间 [s]'
+    yName = 'X误差 [m]'
     title = 'x-error-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
@@ -395,8 +400,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     yMPC = [mpc[:, 1] - mpc[:, 7] for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'y position error [m]'
+    xName = '时间 [s]'
+    yName = 'Y误差 [m]'
     title = 'y-error-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
@@ -408,8 +413,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     yMPC = [mpc[:,2] * 180/np.pi for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'Heading angle [°]'
+    xName = '时间 [s]'
+    yName = '朝向角 [°]'
     title = 'phi-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
@@ -421,21 +426,26 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     yMPC = [mpc[:,2] * 180/np.pi - mpc[:,8] * 180/np.pi for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'Heading angle error [°]'
+    xName = '时间 [s]'
+    yName = '朝向角误差 [°]'
     title = 'phi-error-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
+    Iphi_ADP = np.sqrt(np.mean(np.power(stateADPList[:,2] * 180/np.pi - stateADPList[:,8] * 180/np.pi, 2)))
+    Iphi_MPC = [np.sqrt(np.mean(np.power(mpc[:,2] * 180/np.pi - mpc[:,8] * 180/np.pi, 2))) for mpc in stateMPCAll]
+    print('Phi error ADP: {}°'.format(Iphi_ADP))
+    for i in range(len(MPCStep)):
+        print('Phi error MPC-{}: {}°'.format(MPCStep[i], Iphi_MPC[i]))
 
     # utility v.s. t
     yADP = rewardADP
     yMPC = [mpc for mpc in rewardMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'utility'
+    xName = '时间 [s]'
+    yName = '代价函数'
     title = 'utility-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
@@ -447,36 +457,37 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     yMPC = [np.cumsum(mpc) for mpc in rewardMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'accumulated utility'
+    xName = '时间 [s]'
+    yName = '累计代价函数'
     title = 'accumulated-utility-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
-    print('Accumulated utility of ADP {:.4f}% higher than MPC'.format((yADP[-1]-yMPC[-1][-1])/yMPC[-1][-1]*100))
-
+    print('Accumulated utility of ADP {:.4f}, {:.4f}% higher than MPC'.format(yADP[-1], (yADP[-1]-yMPC[-1][-1])/yMPC[-1][-1]*100))
+    for i in range(len(yMPC)):
+        print('Accumulated utility of MPC-{} {:.4f}, {:.4f}% higher than MPC-{}'.format(
+            MPCStep[i], yMPC[i][-1], (yMPC[i][-1]-yMPC[-1][-1])/yMPC[-1][-1]*100, MPCStep[-1]))
     # a v.s. t
     yADP = controlADPList[:,0]
     yMPC = [mpc[:,0] for mpc in controlMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'Acceleration [m/s^2]'
+    xName = '时间 [s]'
+    yName = '加速度 [m/s^2]'
     title = 'a-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title)
 
-
     # delta v.s. t
     yADP = controlADPList[:,1] * 180/np.pi
     yMPC = [mpc[:,1] * 180/np.pi for mpc in controlMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Travel time [s]'
-    yName = 'Steering angle [°]'
+    xName = '时间 [s]'
+    yName = '前轮转角 [°]'
     title = 'delta-t'
     if curveType == 'RandomTest':
         comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, figSize=figSize)
@@ -683,16 +694,16 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
     xName = 'Predictive horizon [s]'
-    yName = 'accumulated utility'
+    yName = 'Accumulated utility'
     title = 'accumulated-utility-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
 
 def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False, isRef = False, xRef = None, yRef = None, figSize = None, lineWidth = 2):
-    if figSize != None:
+    if figSize != None and figSize != 'equal':
         plt.figure(figsize=figSize, dpi=300)
     else:
         plt.figure()
-    colorList = ['darkorange', 'green', 'blue', 'red']
+    colorList = ['darkorange', 'limegreen', 'blue', 'red']
     if isMark == True:
         markerList = ['|', 'D', 'o', '*']
     else:
@@ -700,20 +711,24 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
     for i in range(len(xMPC)):
         plt.plot(xMPC[i], yMPC[i], linewidth=lineWidth, color = colorList[3 - len(xMPC) + i], linestyle = '--', marker=markerList[3 - len(xMPC) + i], markersize=4)
 
-    plt.plot(xADP, yADP , linewidth = lineWidth, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4, markevery=10)
+    plt.plot(xADP, yADP , linewidth = lineWidth, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
     if isError == True:
         plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = lineWidth/2, color = 'grey', linestyle = '-')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
     elif isRef == True:
         plt.plot(xRef, yRef, linewidth = lineWidth/2, color = 'gray', linestyle = '--')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
+        # plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
     else:
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP'])
     plt.xlabel(xName)
     plt.ylabel(yName)
-    # plt.subplots_adjust(left=)
-    plt.savefig(simu_dir + '/' + title + '.png', bbox_inches='tight')
-    plt.axis('scaled')
+    # plt.savefig(simu_dir + '/' + title + '.png', bbox_inches='tight')
+    plt.savefig(simu_dir + '/' + title + '.png')
+    if figSize == 'equal':
+        plt.axis('equal')
+    else:
+        plt.axis('scaled')
     plt.close()
 
 def animationPlot(state, refstate, xName, yName):
@@ -774,27 +789,39 @@ def main(ADP_dir):
 
     # # 4. 真实时域ADP、MPC应用
     seed = 3
+    # plt.rcParams['font.size'] = 12.5
+    # plt.rcParams['figure.figsize'] = (8.0, 6.0)
     # simu_dir = ADP_dir + '/simulationReal/sine'
     # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'sine', seed = seed)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = seed)
 
     # simu_dir = ADP_dir + '/simulationReal/DLC'
     # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
 
     # simu_dir = ADP_dir + '/simulationReal/TurnLeft'
     # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
 
     # simu_dir = ADP_dir + '/simulationReal/TurnRight'
     # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal([MPCStep[-1]], ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
+    parameters = {'axes.labelsize': 24,
+          'axes.titlesize': 16,
+        #   'figure.figsize': (9.0, 6.5),
+          'xtick.labelsize': 18,
+          'ytick.labelsize': 18,
+          'font.sans-serif':'KaiTi',
+          'axes.unicode_minus': False}
+    plt.rcParams.update(parameters)
 
     simu_dir = ADP_dir + '/simulationReal/RandomTest'
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
     
     # # 5. 虚拟时域ADP、MPC应用
+    # plt.rcParams['figure.figsize'] = (8.0, 6.0)
+    # plt.rcParams['font.size'] = 12.5
     # simu_dir = ADP_dir + '/simulationVirtual'
     # os.makedirs(simu_dir, exist_ok=True)
     # # for seed in range(100):
