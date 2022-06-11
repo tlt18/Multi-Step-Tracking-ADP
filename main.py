@@ -67,6 +67,7 @@ if isTrain:
                 iterarion, train.lossValue[-1], train.lossPolicy[-1], value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
         if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
             env.policyTestReal(policy, iterarion, log_dir+'/train')
+            env.plotValue(value, log_dir+'/train')
             env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1)
             rewardSum = env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1, isPlot = False)
             print("Accumulated Reward in virtual time is {:.4f}".format(rewardSum))

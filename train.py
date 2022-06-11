@@ -45,6 +45,25 @@ class Train():
     def policyEvaluate(self, policy, value):
         relState = self.env.relStateCal(self.batchData)
         valuePredict = value(relState)
+        # smooth V
+        # smoothState = relState.detach()
+        # epsilon = 0.0001
+        # valueGrad = torch.zeros([self.batchSize, smoothState.size(1)])
+        # for i in range(smoothState.size(1)):
+        #     deltaState = torch.zeros(smoothState.size(1))
+        #     deltaState[i] = epsilon
+        #     valueGrad[:,i] = (value(smoothState + deltaState) - value(smoothState))/epsilon
+        # lossGrad = torch.sqrt(torch.sum(torch.pow(valueGrad, 2)))
+
+        # testState = smoothState.clone()
+        # testState.requires_grad_(True)
+        # testState.retain_grad()
+        # testValue = value(testState)
+        # testValue.backward(torch.ones(testValue.size()), retain_graph=True)
+        # testGrad = torch.sqrt(torch.sum(torch.pow(testState.grad, 2)))
+        # print('lossGrad: {}'.format(lossGrad))
+        # print('testGrad: {}'.format(testGrad))
+
         valueTaeget = torch.zeros(self.batchSize)
         stateNext = self.batchData.clone()
         self.gammarForward = 1
@@ -60,7 +79,8 @@ class Train():
         relState = self.env.relStateCal(stateNext)
         valueTaeget += (~done) * value(relState) * self.gammarForward
         valueTaeget = valueTaeget.detach()
-        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() * 1 + torch.pow(value(value._zero_state), 2).mean() * 0
+        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() * 1 + torch.pow(value(value._zero_state), 2).mean() * 0.01
+        # lossValue = torch.pow(valuePredict - valueTaeget, 2).mean() + lossGrad * 0.001
         lossValue = torch.pow(valuePredict - valueTaeget, 2).mean()
         value.zero_grad()
         lossValue.backward()
@@ -75,6 +95,7 @@ class Train():
             p.requires_grad = False
         relState = self.env.relStateCal(self.stateForwardNext)
         valueTarget = self.accumulateReward + (~self.doneForward) * value(relState) * self.gammarForward
+        # valueTarget = self.accumulateReward
         for p in value.parameters():
             p.requires_grad = True
         policy.zero_grad()

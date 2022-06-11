@@ -298,6 +298,42 @@ class TrackingEnv(gym.Env):
         plt.savefig(log_dir + '/reward.png')
         plt.close()
 
+    def plotValue(self, value, log_dir):
+        state = self.resetRandom(1, noise=0) # [v, omega, x, y, phi, xr, yr, phir]
+        deltay = torch.arange(-0.5, 0.5, 0.01)
+        deltaphi = torch.arange(-0.2, 0.2, 0.01)
+        X, Y = torch.meshgrid(deltay, deltaphi * 180/np.pi)
+        valueGridADP = torch.empty_like(X)
+        X = X.numpy()
+        Y = Y.numpy()
+        for i in range(deltay.shape[0]):
+            for j in range(deltaphi.shape[0]):
+                stateUse = state.clone()
+                stateUse[:, 3] += deltay[i]
+                stateUse[:, 4] += deltaphi[j]
+                refState = self.relStateCal(stateUse)
+                valueGridADP[i][j] = value(refState).detach()
+        valueGridADP = valueGridADP.numpy()
+        figure = plt.figure()
+        ax = Axes3D(figure)
+        surf = ax.plot_surface(X, Y, valueGridADP, rstride=1,cstride=1,cmap='rainbow')
+        ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+        ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+        ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+        ax.set_xlabel('Delta Y [m]')
+        ax.set_ylabel('Delta Phi [°]')
+        ax.set_zlabel('Value')
+        # figure.colorbar(surf, shrink=0.5, aspect=5)
+        plt.savefig(log_dir + '/valueADP.png')
+        plt.close()
+        figure = plt.figure()
+        ax = figure.add_subplot()
+        ax.contour(X, Y, valueGridADP, cmap='rainbow')
+        ax.set_xlabel('Delta Y [m]')
+        ax.set_ylabel('Delta Phi [°]')
+        plt.savefig(log_dir + '/valueADPContourf.png')
+        plt.close()
+
 if __name__ == '__main__':
     ADP_dir = './Results_dir/2022-04-10-23-28-38'
     log_dir = ADP_dir + '/test'

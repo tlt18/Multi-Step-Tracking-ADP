@@ -515,6 +515,7 @@ def  simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False):
     ax = Axes3D(figure)
     surf = ax.plot_surface(X, Y, np.abs((valueGridADP - valueGridMPC)/(valueGridMPC+0.2))*100, rstride=1,cstride=1,cmap='rainbow')
     # ax.grid(False)
+    print('max relative error: {}%'.format(np.max(np.abs((valueGridADP - valueGridMPC)/(valueGridMPC+0.2))*100)))
     ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
     ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
     ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
@@ -584,25 +585,26 @@ if __name__ == '__main__':
     config = MPCConfig()
     MPCStep = config.MPCStep
     # check reward
-    ADP_dir = './Results_dir/2022-04-13-17-31-23'
-    # # 1. Apply in real time
-    # simu_dir = ADP_dir + '/simulationReal'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # for seed in range(1):
-    #     print('seed = {}'.format(seed))
-    #     simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
+    ADP_dir = './Results_dir/2022-06-07-20-57-52'
+
+    # # # 1. Apply in real time
+    simu_dir = ADP_dir + '/simulationReal'
+    os.makedirs(simu_dir, exist_ok=True)
+    for seed in range(1):
+        print('seed = {}'.format(seed))
+        simulationReal(MPCStep, ADP_dir, simu_dir, seed=seed)
 
     # # 2. Apply in virtual time
-    # plt.rcParams['font.size'] = 12.5
-    # plt.rcParams['figure.figsize'] = (8.0, 6.0)
-    # simu_dir = ADP_dir + '/simulationVirtual'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # # for seed in range(100):
+    plt.rcParams['font.size'] = 12.5
+    plt.rcParams['figure.figsize'] = (8.0, 6.0)
+    simu_dir = ADP_dir + '/simulationVirtual'
+    os.makedirs(simu_dir, exist_ok=True)
+    for seed in range(100):
     # for seed in [0]:
-    #     print('seed = {}'.format(seed))
-    #     simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+        print('seed = {}'.format(seed))
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
 
     # # 3. Value
     simu_dir = ADP_dir + '/simulationValue'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = True)
+    simulationValue(MPCStep, ADP_dir, simu_dir, isLoad = False)
