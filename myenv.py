@@ -16,7 +16,6 @@ from matplotlib.pyplot import MultipleLocator
 from config import vehicleDynamic
 from network import Actor, Critic
 
-
 class TrackingEnv(gym.Env):
     def __init__(self):
         super().__init__()
@@ -42,7 +41,6 @@ class TrackingEnv(gym.Env):
         self.testStepReal = config.testStepReal
         self.testStepVirtual = config.testStepVirtual
         self.testSampleNum = config.testSampleNum
-        self.renderStep = config.renderStep
 
         # action space
         # u = [acc, delta]
@@ -62,7 +60,9 @@ class TrackingEnv(gym.Env):
         self.stateDim = 6 + 3 * self.refNum # augmented state dimensions, \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         self.relstateDim = 3 + 4 * self.refNum # relative state, input of NN, x_r = [u, v, omega, [xe, ye, cos(phie), sin(phie)]]
         self.randomTestNum = 0
-    
+        self.MPCState = None
+        self.MPCAction = None
+
     def randomTestReset(self):
         self.randomTestNum = 0
 
@@ -72,7 +72,7 @@ class TrackingEnv(gym.Env):
         torch.manual_seed(s)
 
 
-    def resetRandom(self, stateNum, noise = 1, MPCflag = 0, MPCtest = False):
+    def resetRandom(self, stateNum, noise = 1, MPCflag = 0):
         # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
         # u: [4*self.refV/5, 6*self.refV/5]
@@ -446,15 +446,6 @@ class TrackingEnv(gym.Env):
                 plt.title("Ts: "+str(Ts*1000)+" [ms]")
                 plt.savefig(log_dir + "/a"+str(action[0])+"_delta"+str(action[1])+'T_s'+str(self.T)+".png", bbox_inches='tight')
                 plt.close()
-
-
-    def plotReward(self, rewardSum, log_dir, saveIteration):
-        plt.figure()
-        plt.plot(range(0,len(rewardSum)*saveIteration, saveIteration),rewardSum)
-        plt.xlabel('itetation')
-        plt.ylabel('reward')
-        plt.savefig(log_dir + '/reward.png')
-        plt.close()
 
 if __name__ == '__main__':
     # ADP_dir = './Results_dir/2022-04-09-10-12-16'

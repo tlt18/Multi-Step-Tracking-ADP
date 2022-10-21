@@ -4,7 +4,7 @@ import torch
 
 class trainConfig():
     def __init__(self):
-        self.iterationMax = 50000
+        self.iterationMax = 200000
         self.iterationPrint = 100
         self.iterationSave = 1000
         self.lrPolicy = 1e-3
@@ -17,6 +17,9 @@ class trainConfig():
 
         self.lifeMax = 20
         self.batchSize = 256
+        self.sampleSize = 256
+        self.warmBuffer = 4 * 256
+        self.capacity = 256000
 
 
 class vehicleDynamic():
@@ -45,9 +48,10 @@ class vehicleDynamic():
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
         self.testStepReal = {'sine': 200, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500}
         self.testStepVirtual = 40
-        self.testSampleNum = 100
-        self.renderStep = 100
-        self.refNum = 3
+        # TODO: to 100
+        self.testSampleNum = 10
+        self.refNum = 6
+        self.mpcstep = 60
 
 class MPCConfig():
     def __init__(self):

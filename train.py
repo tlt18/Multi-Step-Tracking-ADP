@@ -3,46 +3,63 @@ import torch
 from config import trainConfig
 import os
 import matplotlib.pyplot as plt
+from replaybuffer import ReplayBuffer
 
 class Train():
-    def __init__(self, env):
+    def __init__(self, env, log_dir):
         self.env = env
-        self.lossIteraValue = np.empty(0)
-        self.lossIteraPolicy = np.empty(0)
-        self.lossValue = np.empty(0)
-        self.lossPolicy = np.empty(0)
+        self.lossIteraValue = None
+        self.lossIteraPolicy = None
+        # self.lossValue = np.empty(0)
+        # self.lossPolicy = np.empty(0)
         config = trainConfig()
         self.stepForwardPEV = config.stepForwardPEV
         self.batchSize = config.batchSize
+        self.sampleSize = config.sampleSize
+        self.warmBuffer = config.warmBuffer
         self.gammar = config.gammar
         self.lifeMax = config.lifeMax
-        self.statelifeMax = torch.rand(self.batchSize) * config.lifeMax
-        self.batchData = torch.empty([self.batchSize, self.env.stateDim])
-        self.batchDataLife = torch.zeros(self.batchSize)
+        self.statelifeMax = torch.rand(self.sampleSize) * config.lifeMax
+        self.sampleData = torch.empty([self.sampleSize, self.env.stateDim])
+        self.sampleDataLife = torch.zeros(self.sampleSize)
         self.accumulateReward = None
         self.stateForwardNext = None
         self.doneForward = None
         self.gammarForward = 1
+        self.buffer = ReplayBuffer(config.capacity)
         self.reset()
 
     def reset(self):
-        self.batchData = self.env.resetRandom(self.batchSize)
+        self.sampleData = self.env.resetRandom(self.batchSize)
+        for i in range(self.sampleSize):
+            self.buffer.push(self.sampleData[i])
 
     def update(self, policy):
-        relState = self.env.relStateCal(self.batchData)
+        relState = self.env.relStateCal(self.sampleData)
         control = policy(relState).detach()
-        self.batchData, _, done = self.env.stepVirtual(self.batchData, control)
-        self.batchDataLife += 1
-        if sum(done==True) >0 :
-            self.batchData[done==1] = self.env.resetRandom(sum(done==1))
-            self.batchDataLife[done==1] = 0
-        if sum(self.batchDataLife > self.statelifeMax) > 0:
-            temp = (self.batchDataLife > self.statelifeMax)
-            self.batchData[temp] =self.env.resetRandom(sum(temp))
-            self.batchDataLife[temp] = 0
+        self.sampleData, _, done = self.env.stepVirtual(self.sampleData, control)
+        self.sampleDataLife += 1
+        if sum(done==True) >0:
+            self.sampleData[done==1] = self.env.resetRandom(sum(done==1))
+            self.sampleDataLife[done==1] = 0
+        if sum(self.sampleDataLife > self.statelifeMax) > 0:
+            temp = (self.sampleDataLife > self.statelifeMax)
+            self.sampleData[temp] =self.env.resetRandom(sum(temp))
+            self.sampleDataLife[temp] = 0
             self.statelifeMax[temp] = torch.rand(sum(temp)) * self.lifeMax
+        # The sampled data is stored into replaybuffer
+        for i in range(self.sampleSize):
+            self.buffer.push(self.sampleData[i])
 
     def policyEvaluate(self, policy, value):
+        # TODO: warm buffer
+        while len(self.buffer) < self.warmBuffer:
+            self.update(policy)
+        # use replay buffer
+        self.batchData = torch.stack(self.buffer.sample(self.batchSize))
+        # use sample data
+        # self.batchData = self.sampleData
+
         relState = self.env.relStateCal(self.batchData)
         valuePredict = value(relState)
         valueTaeget = torch.zeros(self.batchSize)
@@ -66,8 +83,7 @@ class Train():
         torch.nn.utils.clip_grad_norm_(value.parameters(), 10.0)
         value.opt.step()
         value.scheduler.step()
-        self.lossIteraValue = np.append(
-            self.lossIteraValue, lossValue.detach().numpy())
+        self.lossIteraValue = lossValue.detach().numpy()
 
     def policyImprove(self, policy, value):
         for p in value.parameters():
@@ -82,41 +98,4 @@ class Train():
         torch.nn.utils.clip_grad_norm_(policy.parameters(), 10.0)
         policy.opt.step()
         policy.scheduler.step()
-        self.lossIteraPolicy = np.append(
-            self.lossIteraPolicy, lossPolicy.detach().numpy())
-
-    def calLoss(self):
-        self.lossValue = np.append(self.lossValue, self.lossIteraValue.mean())
-        self.lossPolicy = np.append(self.lossPolicy, self.lossIteraPolicy.mean())
-        self.lossIteraValue = np.empty(0)
-        self.lossIteraPolicy = np.empty(0)
-
-    def saveDate(self, log_dir):
-        # TODO: loss 数量不一样
-        with open(log_dir + "/loss.csv", 'wb') as f:
-            np.savetxt(f, np.stack((self.lossValue, self.lossPolicy), 1), delimiter=',', fmt='%.4f', comments='', header="valueLoss,policyLoss")
-
-
-        plt.figure()
-        plt.plot(range(len(self.lossValue)), self.smooth(self.lossValue, 0.6), color = 'blue', label = 'Value Loss')
-        plt.yscale('log')
-        plt.xlabel('iteration')
-        plt.ylabel('Value Loss')
-        plt.savefig(log_dir + '/loss_value.png', bbox_inches='tight')
-        plt.close()
-
-        plt.plot(range(len(self.lossPolicy)), self.smooth(self.lossPolicy, 0.6), color = 'blue', label = 'Policy Loss')
-        plt.yscale('log')
-        plt.xlabel('iteration')
-        plt.ylabel('Policy Loss')
-        plt.savefig(log_dir + '/loss_policy.png', bbox_inches='tight')
-        plt.close()
-
-    def smooth(self, data, weight):
-        last = data[0]
-        smooth = []
-        for point in data:
-            smoothed = last * weight + point * (1 - weight)
-            smooth.append(smoothed)
-            last = smoothed
-        return smooth
+        self.lossIteraPolicy = lossPolicy.detach().numpy()
