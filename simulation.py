@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime
 from turtle import color
+from matplotlib import legend
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +17,7 @@ from network import Actor, Critic
 from solver import Solver
 
 def simulationMPC(MPCStep, simu_dir, curveType = 'sine'):
-    # 测试MPC跟踪性能
+
     env = TrackingEnv()
     env.seed(0)
     stateDim = env.stateDim
@@ -184,7 +185,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
     solver = Solver()
-    initialState = env.resetSpecificCurve(1, curveType, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
+    initialState = env.resetSpecificCurve(1, curveType) # [u,v,omega,[xr,yr,phir],x,y,phi]
 
     # ADP
     stateAdp = initialState.clone()
@@ -206,14 +207,11 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
         count += 1
-
     stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
     controlADPList = np.reshape(controlADPList, (-1, actionDim))
-
     stateADPList = np.delete(stateADPList, range(plotDelete), 0)
     controlADPList = np.delete(controlADPList, range(plotDelete), 0)
     rewardADP = np.delete(rewardADP, range(plotDelete), 0)
-
     saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
     with open(simu_dir + "/simulationRealADP.csv", 'wb') as f:
         np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*env.refNum + "a,delta")
@@ -269,7 +267,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
 
     colorList = ['darkorange', 'green', 'blue', 'red']
     plt.figure()
-
     pos = list(range(len(MPCStep) + 1))
     plt.bar([p for p in pos], [timeADP.mean() * 1000]+[timempc.mean() * 1000 for timempc in timeMPCAll], 
         width = 0.3,color = [colorList[-1]] + [colorList[i] for i in range(len(MPCStep))], 
@@ -834,7 +831,7 @@ def main(ADP_dir):
     # os.makedirs(simu_dir, exist_ok=True)
     # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
 
-    # # 4. 真实时域ADP、MPC应用
+    # 4. 真实时域ADP、MPC应用
     seed = 3
     # plt.rcParams['font.size'] = 12.5
     # plt.rcParams['figure.figsize'] = (8.0, 6.0)
@@ -865,7 +862,7 @@ def main(ADP_dir):
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
     
-    # # 5. 虚拟时域ADP、MPC应用
+    # 5. 虚拟时域ADP、MPC应用
     plt.rcParams['figure.figsize'] = (8.0, 6.0)
     plt.rcParams['font.size'] = 12.5
     simu_dir = ADP_dir + '/simulationVirtual'
@@ -873,7 +870,6 @@ def main(ADP_dir):
     for seed in range(100):
     # for seed in [100]:
         simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
-
     print("-"*100)
     errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
     print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
@@ -882,6 +878,86 @@ def main(ADP_dir):
     print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
     print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
 
+def compareHorizon(ADP_dirs, refNum_list, seed = 0):
+    simu_dir = "./Simulation_dir/compareHorizon" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    os.makedirs(simu_dir, exist_ok=True)
+    
+    env = TrackingEnv()
+    env.seed(seed)
+    env.changeRefNum(refNum_list[-1])
+    config = MPCConfig()
+    mpcstep = config.MPCStep[-1]
+    curveType = 'RandomTest'
+    envInitialState = env.resetSpecificCurve(1, curveType) # [u, v, omega, [xr, yr, phir], x, y, phi]
+    rewardMPCAll = []
+    stateMPCAll = []
+    controlMPCAll = []
+    for index in range(len(refNum_list)):
+        refNum = refNum_list[index]
+        print("Number of reference states: {}".format(refNum))
+        env.changeRefNum(refNum)
+        solver = Solver(env)
+        relstateDim = env.relstateDim
+        actionDim = env.actionSpace.shape[0]
+        initialRef = torch.zeros((1, refNum * 3))
+        for i in range(refNum):
+            initialRef[0, 3 * i] = env.refV * env.T * i
+        initialState = torch.cat((envInitialState[:, :3], initialRef, envInitialState[:, -3:]), 1)
+
+        # MPC
+        env.randomTestReset()
+        tempstate = initialState[0].tolist()
+        stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
+        refStateMpc = tempstate[3:-3]
+        count = 0
+        controlMPCList = np.empty(0)
+        stateMPCList = np.empty(0)
+        rewardMPC = np.empty(0)
+        # timeMPC = np.empty(0)
+        while(count < env.testStepReal[curveType]):
+            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+            stateMPCList = np.append(stateMPCList, np.array(stateMpc))
+            stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
+            action = control[0].tolist()
+            reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
+            stateMpc = env.vehicleDynamic(
+                stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
+            refStateMpc = env.refDynamicReal(refStateMpc, MPCflag=1, curveType=curveType)
+            rewardMPC = np.append(rewardMPC, reward)
+            controlMPCList = np.append(controlMPCList, control[0])
+            count += 1
+        stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
+        controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
+
+        saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
+        with open(simu_dir + "/MPCRefNum_"+str(refNum)+".csv", 'wb') as f:
+            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*refNum + "a,delta")
+        rewardMPCAll.append(rewardMPC)
+        stateMPCAll.append(stateMPCList)
+        controlMPCAll.append(controlMPCList)
+
+    # Plot
+    # stateAll: [x,y,phi,u,v,omega,[xr,yr,phir]]
+    # controlAll: [a, delta]
+    # reward
+    plt.figure()
+    for index in range(len(refNum_list)):
+        accRewardMPC = np.cumsum(rewardMPCAll[index])
+        plt.plot(range(len(accRewardMPC)), accRewardMPC, label = 'RefNum='+str(refNum_list[index]))
+    plt.legend()
+    plt.savefig(simu_dir + '/accumulate_utility.png')
+
+    # x-y
+    plt.figure()
+    for index in range(len(refNum_list)):
+        plt.plot(stateMPCAll[index][:, 0] - (refNum_list[index] - refNum_list[0]) * env.refV * env.T , stateMPCAll[index][:, 1], label = 'RefNum='+str(refNum_list[index]))
+    plt.legend()
+    plt.savefig(simu_dir + '/x-y.png')
+
+
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2022-10-10-19-49-19'
-    main(ADP_dir)
+    # ADP_dir = './Results_dir/2022-10-16-15-25-05'
+    # main(ADP_dir)
+    ADP_dirs = ['./Results_dir/2022-10-16-15-25-05']
+    refNum_list = range(2, 21, 2)
+    compareHorizon(ADP_dirs, refNum_list)

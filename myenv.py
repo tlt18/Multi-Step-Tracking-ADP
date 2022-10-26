@@ -56,12 +56,15 @@ class TrackingEnv(gym.Env):
         # u and v are the longitudinal and lateral velocities respectively
         self.stateLow = [0, -5*self.refV, -20, -inf, -inf, -2 * np.pi]
         self.stateHigh = [5*self.refV, 5*self.refV, 20, inf, inf, 2 * np.pi]
-        self.refNum = config.refNum
-        self.stateDim = 6 + 3 * self.refNum # augmented state dimensions, \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
-        self.relstateDim = 3 + 4 * self.refNum # relative state, input of NN, x_r = [u, v, omega, [xe, ye, cos(phie), sin(phie)]]
+        self.changeRefNum(config.refNum)
         self.randomTestNum = 0
         self.MPCState = None
         self.MPCAction = None
+
+    def changeRefNum(self, refNum):
+        self.refNum = refNum
+        self.stateDim = 6 + 3 * self.refNum # augmented state dimensions, \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
+        self.relstateDim = 3 + 4 * self.refNum # relative state, input of NN, x_r = [u, v, omega, [xe, ye, cos(phie), sin(phie)]]
 
     def randomTestReset(self):
         self.randomTestNum = 0
@@ -118,7 +121,7 @@ class TrackingEnv(gym.Env):
         return refState
 
 
-    def resetSpecificCurve(self, stateNum, curveType = 'sine', noise = 0):
+    def resetSpecificCurve(self, stateNum, curveType = 'sine'):
         # \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
         newState[:, 0] = torch.ones(stateNum) * self.refV # u
@@ -250,7 +253,7 @@ class TrackingEnv(gym.Env):
             newRefState = torch.empty_like(refState)
             newRefState[:, :-3] = refState[:, 3:]
             # TODO: add noise to refDeltx
-            refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2)+torch.pow(refState[:, -6]-refState[:, -3],2))
+            refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2) + torch.pow(refState[:, -6]-refState[:, -3],2))
             # refDeltax = self.T * self.refV
             newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refState[:, -1])
             newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refState[:, -1])

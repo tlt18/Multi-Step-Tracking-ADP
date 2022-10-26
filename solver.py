@@ -6,10 +6,13 @@ from sys import path
 from casadi import *
 
 class Solver():
-    def __init__(self):
+    def __init__(self, env = None):
         self._sol_dic = {'ipopt.print_level': 0,
                          'ipopt.sb': 'yes', 'print_time': 0}
-        self.env = TrackingEnv()
+        if env == None:
+            self.env = TrackingEnv()
+        else:
+            self.env = env
         self.stateLow = self.env.stateLow[3:] + self.env.stateLow[:3]
         self.stateHigh = self.env.stateHigh[3:] + self.env.stateHigh[:3]
         self.actionLow = self.env.actionLow
