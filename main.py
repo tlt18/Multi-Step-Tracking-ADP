@@ -1,12 +1,9 @@
 import os
 import shutil
-from symbol import parameters
 import time
 from datetime import datetime
 
 from torch.utils.tensorboard import SummaryWriter
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 
 from config import trainConfig
@@ -14,6 +11,9 @@ from myenv import TrackingEnv
 from network import Actor, Critic
 from train import Train
 import simulation
+
+os.environ["OMP_NUM_THREADS"] = "4"
+torch.set_num_threads(4)
 
 # mode setting
 isTrain = True

@@ -5,7 +5,6 @@ import os
 import time
 from datetime import datetime
 from turtle import color
-from matplotlib import legend
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -296,6 +295,22 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     plt.savefig(simu_dir + '/calculation-time-step.png', bbox_inches='tight')
     plt.close()
 
+    # TODO: time
+    plt.figure()
+    plt.boxplot([time * 1000 for time in timeMPCAll] + [timeADP * 1000], patch_artist=True,widths=0.4,
+                showmeans=True,
+                meanprops={'marker':'+',
+                        'markerfacecolor':'k',
+                        'markeredgecolor':'k',
+                        'markersize':5})
+    plt.xticks(range(1, len(MPCStep)+2, 1), ['MPC-'+str(step) for step in MPCStep] + ['RL'])
+    # plt.ylim(0,9)
+    plt.yscale('log')
+    plt.grid(axis='y',ls='--',alpha=0.5)
+    plt.ylabel('Calculation time [ms]',fontsize=18)
+    plt.savefig(simu_dir + '/boxplot-time.png', bbox_inches='tight')
+    plt.close()
+
     # stateADPList: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlMPCAll: [a, delta]
     # Cal relative error
@@ -495,7 +510,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
 def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     # 虚拟时域ADP、MPC应用
     print("----------------------Start Solving! seed: {}----------------------".format(seed))
-    plotDelete = 4
+    plotDelete = 0
     env = TrackingEnv()
     env.seed(seed)
     relstateDim = env.relstateDim
@@ -506,6 +521,11 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     value.loadParameters(ADP_dir)
     solver = Solver()
     initialState = env.resetRandom(1, noise = noise) # [u,v,omega,[xr,yr,phir],x,y,phi]
+    if noise == 0:
+        # initialState[0, 0] += 0.01
+        initialState[0, 2] = -0.05
+        initialState[0, -2] = 0.8
+        initialState[0, -1] = np.pi/30
 
     # ADP
     stateAdp = initialState.clone()
@@ -621,7 +641,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xMPC = [np.arange(0, len(mpc[:,0])) * env.T for mpc in controlMPCAll]
     yADP = controlADPList[:,0]
     yMPC = [mpc[:,0] for mpc in controlMPCAll]
-    xName = 'Predictive horizon [s]'
+    xName = 'Time [s]'
     yName = 'Acceleration [m/s^2]'
     title = 'a-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
@@ -631,7 +651,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xMPC = [np.arange(0, len(mpc[:,1])) * env.T for mpc in controlMPCAll]
     yADP = controlADPList[:,1] * 180 / np.pi
     yMPC = [mpc[:,1] * 180 / np.pi for mpc in controlMPCAll]
-    xName = 'Predictive horizon [s]'
+    xName = 'Time [s]'
     yName = 'Steering Angle [°]'
     title = 'delta-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
@@ -641,7 +661,7 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     yMPC = [np.sqrt(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2)) for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Predictive horizon [s]'
+    xName = 'Time [s]'
     yName = 'Distance error [m]'
     title = 'distance-error-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
@@ -651,10 +671,22 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     yMPC = [(mpc[:,2] - mpc[:,8]) * 180 / np.pi for mpc in stateMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Predictive horizon [s]'
+    xName = 'Time [s]'
     yName = 'Heading angle error [°]'
     title = 'phi-error-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
+
+    # phi v.s. t
+    yADP = stateADPList[:,2] * 180 / np.pi
+    yMPC = [mpc[:,2] * 180 / np.pi for mpc in stateMPCAll]
+    xADP = np.arange(0, len(yADP)) * env.T
+    xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
+    xName = 'Time [s]'
+    yName = 'Heading angle [°]'
+    title = 'phi-t'
+    xRef = np.arange(0, len(yADP)) * env.T
+    yRef = stateADPList[:,8] * 180 / np.pi
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isRef = True, xRef = xRef, yRef = yRef)
 
     # phi error v.s. distance error
     xADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))
@@ -671,17 +703,19 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     xMPC = [mpc[:, 0] for mpc in stateMPCAll]
     yADP = stateADPList[:, 1]
     yMPC = [mpc[:, 1] for mpc in stateMPCAll]
-    xName = 'x posision [m]'
-    yName = 'y posision [m]'
+    xName = 'X [m]'
+    yName = 'Y [m]'
     title = 'y-x'
-    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True)
+    xRef = stateADPList[:, 6]
+    yRef = stateADPList[:, 7]
+    comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isRef = True, xRef = xRef, yRef = yRef)
 
     # utility v.s. t
     yADP = rewardADP
     yMPC = [mpc for mpc in rewardMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Predictive horizon [s]'
+    xName = 'Time [s]'
     yName = 'utility'
     title = 'utility-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = True)
@@ -691,9 +725,9 @@ def simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0, seed = 0):
     yMPC = [np.cumsum(mpc) for mpc in rewardMPCAll]
     xADP = np.arange(0, len(yADP)) * env.T
     xMPC = [np.arange(0, len(mpc)) * env.T for mpc in yMPC]
-    xName = 'Predictive horizon [s]'
-    yName = 'Accumulated utility'
-    title = 'accumulated-utility-t'
+    xName = 'Time [s]'
+    yName = 'Accumulated cost'
+    title = 'accumulated-cost-t'
     comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = True, isError = False)
 
 def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, isMark = False, isError = False, isRef = False, xRef = None, yRef = None, figSize = None, lineWidth = 2):
@@ -711,7 +745,7 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
 
     plt.plot(xADP, yADP , linewidth = lineWidth, color=colorList[-1],linestyle = '--', marker=markerList[-1], markersize=4)
     if isError == True:
-        plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = lineWidth/2, color = 'grey', linestyle = '-')
+        plt.plot([np.min(xADP), np.max(xADP)], [0,0], linewidth = lineWidth/2, color = 'grey', linestyle = '--')
         plt.legend(labels=['MPC'+str(mpcStep) for mpcStep in MPCStep] + ['ADP', 'Ref'])
     elif isRef == True:
         plt.plot(xRef, yRef, linewidth = lineWidth/2, color = 'gray', linestyle = '--')
@@ -812,6 +846,15 @@ def simuVirtualTraning(env, ADP_dir, noise = 1):
 def main(ADP_dir):
     config = MPCConfig()
     MPCStep = config.MPCStep
+
+    parameters = {'axes.labelsize': 20,
+        'axes.titlesize': 18,
+    #   'figure.figsize': (9.0, 6.5),
+        'xtick.labelsize': 18,
+        'ytick.labelsize': 18,
+        'axes.unicode_minus': False}
+    plt.rcParams.update(parameters)
+
     # 检查一下reward是否一样
     
     # 1. 真实时域中MPC表现
@@ -833,43 +876,36 @@ def main(ADP_dir):
 
     # 4. 真实时域ADP、MPC应用
     seed = 3
-    # plt.rcParams['font.size'] = 12.5
-    # plt.rcParams['figure.figsize'] = (8.0, 6.0)
-    # simu_dir = ADP_dir + '/simulationReal/sine'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = seed)
+    plt.rcParams['font.size'] = 12.5
+    plt.rcParams['figure.figsize'] = (8, 6.4)
+    simu_dir = ADP_dir + '/simulationReal/sine'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = seed)
 
-    # simu_dir = ADP_dir + '/simulationReal/DLC'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
+    simu_dir = ADP_dir + '/simulationReal/DLC'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
 
-    # simu_dir = ADP_dir + '/simulationReal/TurnLeft'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
+    simu_dir = ADP_dir + '/simulationReal/TurnLeft'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
 
-    # simu_dir = ADP_dir + '/simulationReal/TurnRight'
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
-    parameters = {'axes.labelsize': 24,
-          'axes.titlesize': 16,
-        #   'figure.figsize': (9.0, 6.5),
-          'xtick.labelsize': 18,
-          'ytick.labelsize': 18,
-          'axes.unicode_minus': False}
-    plt.rcParams.update(parameters)
+    simu_dir = ADP_dir + '/simulationReal/TurnRight'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
 
     simu_dir = ADP_dir + '/simulationReal/RandomTest'
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
     
     # 5. 虚拟时域ADP、MPC应用
-    plt.rcParams['figure.figsize'] = (8.0, 6.0)
-    plt.rcParams['font.size'] = 12.5
+    plt.rcParams['figure.figsize'] = (9.2, 6.4)
+    plt.rcParams['font.size'] = 18
     simu_dir = ADP_dir + '/simulationVirtual'
     os.makedirs(simu_dir, exist_ok=True)
     for seed in range(100):
-    # for seed in [100]:
-        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 1, seed = seed)
+    # for seed in [96]:
+        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0.8, seed = seed)
     print("-"*100)
     errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
     print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
@@ -877,11 +913,24 @@ def main(ADP_dir):
     print('Mean Distance Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,4])*100,np.mean(errorList[:,5])*100))
     print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
     print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
+    plt.figure()
+    plt.boxplot([errorList[:, 1]*100, errorList[:, 3]*100, errorList[:, 5]*100, errorList[:, 7]*100],patch_artist=True,widths=0.4,
+                showmeans=True,
+                meanprops={'marker':'+',
+                        'markerfacecolor':'k',
+                        'markeredgecolor':'k',
+                        'markersize':5})
+    plt.xticks([1,2,3,4],['Acceleration','Steering Angle','Distance Error','Heading Error'])
+    # plt.ylim(0,9)
+    plt.grid(axis='y',ls='--',alpha=0.5)
+    plt.ylabel('Maximum relative error [%]',fontsize=18)
+    plt.tight_layout()
+    plt.savefig(simu_dir + '/relative-error.png')
+    plt.close()
 
-def compareHorizon(ADP_dirs, refNum_list, seed = 0):
+def compareHorizon(ADP_list, refNum_list, seed = 0):
     simu_dir = "./Simulation_dir/compareHorizon" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(simu_dir, exist_ok=True)
-    
     env = TrackingEnv()
     env.seed(seed)
     env.changeRefNum(refNum_list[-1])
@@ -892,6 +941,9 @@ def compareHorizon(ADP_dirs, refNum_list, seed = 0):
     rewardMPCAll = []
     stateMPCAll = []
     controlMPCAll = []
+    rewardADPAll = []
+    stateADPAll = []
+    controlADPAll = []
     for index in range(len(refNum_list)):
         refNum = refNum_list[index]
         print("Number of reference states: {}".format(refNum))
@@ -913,7 +965,6 @@ def compareHorizon(ADP_dirs, refNum_list, seed = 0):
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
-        # timeMPC = np.empty(0)
         while(count < env.testStepReal[curveType]):
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
@@ -936,28 +987,201 @@ def compareHorizon(ADP_dirs, refNum_list, seed = 0):
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
 
+        # ADP
+        policy = Actor(relstateDim, actionDim)
+        policy.loadParameters(ADP_list[index])
+        env.randomTestReset()
+        stateAdp = initialState.clone()
+        count = 0
+        controlADPList = np.empty(0)
+        stateADPList = np.empty(0)
+        rewardADP = np.empty(0)
+        while(count < env.testStepReal[curveType]):
+            stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy()) # x, y, phi
+            stateADPList = np.append(stateADPList, stateAdp[0, :-3].numpy()) # u, v, omega, [xr, yr, phir]
+            relState = env.relStateCal(stateAdp)
+            controlAdp = policy(relState)
+            controlAdp = controlAdp.detach()
+            stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = curveType)
+            controlADPList = np.append(controlADPList, controlAdp[0].numpy())
+            rewardADP = np.append(rewardADP, reward.numpy())
+            count += 1
+        stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
+        controlADPList = np.reshape(controlADPList, (-1, actionDim))
+        saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
+        with open(simu_dir + "/ADPRefNum_"+str(refNum)+".csv", 'wb') as f:
+            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*refNum + "a,delta")
+        rewardADPAll.append(rewardADP)
+        stateADPAll.append(stateADPList)
+        controlADPAll.append(controlADPList)
+
     # Plot
     # stateAll: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlAll: [a, delta]
-    # reward
-    plt.figure()
+    # reward-t
+    MPCsaveReward = np.empty(0)
+    ADPsaveReward = np.empty(0)
     for index in range(len(refNum_list)):
-        accRewardMPC = np.cumsum(rewardMPCAll[index])
-        plt.plot(range(len(accRewardMPC)), accRewardMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(1)
+        accRewardMPC = np.cumsum(rewardMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1)])
+        MPCsaveReward = np.append(MPCsaveReward, np.array([refNum_list[index], accRewardMPC[-1]]))
+        plt.plot(np.arange(0, len(accRewardMPC)) * env.T, accRewardMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(2)
+        accRewardADP = np.cumsum(rewardADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1)])
+        ADPsaveReward = np.append(ADPsaveReward, np.array([refNum_list[index], accRewardADP[-1]]))
+        plt.plot(np.arange(0, len(accRewardADP)) * env.T, accRewardADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(1)
     plt.legend()
-    plt.savefig(simu_dir + '/accumulate_utility.png')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Accumulated cost')
+    plt.savefig(simu_dir + '/mpc_accumulate_cost.png')
+    plt.figure(2)
+    plt.legend()
+    plt.xlabel('Time [s]')
+    plt.ylabel('Accumulated cost')
+    plt.savefig(simu_dir + '/adp_accumulate_cost.png')
+    plt.figure(13)
+    MPCsaveReward = np.reshape(MPCsaveReward, (-1, 2))
+    ADPsaveReward = np.reshape(ADPsaveReward, (-1, 2))
+    plt.plot(MPCsaveReward[:, 0], MPCsaveReward[:, 1], label='MPC')
+    plt.plot(ADPsaveReward[:, 0], ADPsaveReward[:, 1], label='ADP')
+    plt.legend()
+    plt.xlabel('Number of reference states')
+    plt.ylabel('Accumulated cost')
+    plt.savefig(simu_dir + '/accumulate_cost.png')
 
-    # x-y
-    plt.figure()
+    # y-x
     for index in range(len(refNum_list)):
-        plt.plot(stateMPCAll[index][:, 0] - (refNum_list[index] - refNum_list[0]) * env.refV * env.T , stateMPCAll[index][:, 1], label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(3)
+        # xMPC = stateMPCAll[index][(refNum_list[index]-1):-(refNum_list[-1]-refNum_list[index]), 0] - refNum_list[index] * env.refV * env.T
+        xMPC = stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0] - refNum_list[index] * env.refV * env.T
+        yMPC = stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
+        plt.plot(xMPC, yMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(4)
+        xADP = stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0] - refNum_list[index] * env.refV * env.T
+        yADP = stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
+        plt.plot(xADP, yADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(3)
     plt.legend()
-    plt.savefig(simu_dir + '/x-y.png')
+    plt.xlabel('X [m]')
+    plt.ylabel('Y [m]')
+    plt.savefig(simu_dir + '/mpc_x-y.png')
+    plt.figure(4)
+    plt.legend()
+    plt.xlabel('X [m]')
+    plt.ylabel('Y [m]')
+    plt.savefig(simu_dir + '/adp_x-y.png')
 
+    # u-t
+    for index in range(len(refNum_list)):
+        plt.figure(5)
+        control_aMPC = controlMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]
+        plt.plot(np.arange(0, len(control_aMPC)) * env.T, control_aMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(6)
+        control_aADP = controlADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]
+        plt.plot(np.arange(0, len(control_aADP)) * env.T, control_aADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(5)
+    plt.legend()
+    plt.ylabel('a [m/s^2]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/mpc_control_a.png')
+    plt.figure(6)
+    plt.legend()
+    plt.ylabel('a [m/s^2]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/adp_control_a.png')
+    for index in range(len(refNum_list)):
+        plt.figure(7)
+        control_deltaMPC = controlMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1] * 180/np.pi
+        plt.plot(np.arange(0, len(control_deltaMPC)) * env.T, control_deltaMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(8)
+        control_deltaADP = controlADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1] * 180/np.pi
+        plt.plot(np.arange(0, len(control_deltaADP)) * env.T, control_deltaADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(7)
+    plt.legend()
+    plt.ylabel('delta [°]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/mpc_control_delta.png')
+    plt.figure(8)
+    plt.legend()
+    plt.ylabel('delta [°]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/adp_control_delta.png')
+
+    # distance error-t
+    # [x,y,phi,u,v,omega,[xr,yr,phir]]
+    for index in range(len(refNum_list)):
+        plt.figure(9)
+        distanceErrorMPC = \
+            np.cumsum(np.sqrt(np.power(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]\
+            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 6],2)\
+            +np.power(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
+            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 7],2)))
+        plt.plot(np.arange(0, len(distanceErrorMPC)) * env.T , distanceErrorMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(10)
+        distanceErrorADP = np.cumsum(np.sqrt(np.power(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]\
+            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 6],2)\
+            +np.power(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
+            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 7],2)))
+        plt.plot(np.arange(0, len(distanceErrorADP)) * env.T , distanceErrorADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(9)
+    plt.legend()
+    plt.ylabel('Accumulated Distance Error [m]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/mpc_cumdistance_error-t.png')
+    plt.figure(10)
+    plt.legend()
+    plt.ylabel('Accumulated Distance Error [m]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/adp_cumdistance_error-t.png')
+
+    # heading error-t
+    # [x,y,phi,u,v,omega,[xr,yr,phir]]
+    for index in range(len(refNum_list)):
+        plt.figure(11)
+        headingErrorMPC = np.cumsum(np.abs(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 2]\
+            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 8]))*180/np.pi
+        plt.plot(np.arange(0, len(headingErrorMPC)) * env.T , headingErrorMPC, label = 'RefNum='+str(refNum_list[index]))
+        plt.figure(12)
+        headingErrorADP = np.cumsum(np.abs(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 2]\
+            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 8]))*180/np.pi
+        plt.plot(np.arange(0, len(headingErrorADP)) * env.T , headingErrorADP, label = 'RefNum='+str(refNum_list[index]))
+    plt.figure(11)
+    plt.legend()
+    plt.ylabel('Accumulated Heading Error [°]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/mpc_cumheading_error-t.png')
+    plt.figure(12)
+    plt.legend()
+    plt.ylabel('Accumulated Heading Error [°]')
+    plt.xlabel('Time [s]')
+    plt.savefig(simu_dir + '/adp_cumheading_error-t.png')
 
 if __name__ == '__main__':
-    # ADP_dir = './Results_dir/2022-10-16-15-25-05'
-    # main(ADP_dir)
-    ADP_dirs = ['./Results_dir/2022-10-16-15-25-05']
-    refNum_list = range(2, 21, 2)
-    compareHorizon(ADP_dirs, refNum_list)
+    ADP_dir = './Results_dir/2023-01-06-11-43-31'
+    main(ADP_dir)
+
+    # parameters = {'axes.labelsize': 14,
+    #     'axes.titlesize': 14,
+    # #   'figure.figsize': (9.0, 6.5),
+    #     'xtick.labelsize': 14,
+    #     'ytick.labelsize': 14,
+    #     'axes.unicode_minus': False}
+    # plt.rcParams.update(parameters)
+    # # file_list = ['2022-11-16-15-41-50', \
+    # #     '2022-10-10-10-37-05',\
+    # #     '2022-10-10-19-49-19',\
+    # #     '2022-10-11-13-27-08',\
+    # #     '2022-10-13-00-46-36',\
+    # #     '2022-10-13-12-03-24',\
+    # #     '2022-10-14-23-12-25',\
+    # #     '2022-10-15-16-56-55',\
+    # #     '2022-11-18-11-06-35']
+    # file_list = ['2023-01-06-11-43-17',\
+    #     '2023-01-06-11-43-31',\
+    #     '2023-01-06-11-43-42',\
+    # ]
+    # ADP_list = ['./Results_dir/' + file for file in file_list]
+    # # refNum_list = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    # refNum_list = [6, 6, 6]
+    # compareHorizon(ADP_list, refNum_list)

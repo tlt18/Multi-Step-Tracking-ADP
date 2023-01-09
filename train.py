@@ -19,6 +19,7 @@ class Train():
         self.warmBuffer = config.warmBuffer
         self.gammar = config.gammar
         self.lifeMax = config.lifeMax
+        self.refNoise = config.refNoise
         self.statelifeMax = torch.rand(self.sampleSize) * config.lifeMax
         self.sampleData = torch.empty([self.sampleSize, self.env.stateDim])
         self.sampleDataLife = torch.zeros(self.sampleSize)
@@ -37,7 +38,7 @@ class Train():
     def update(self, policy):
         relState = self.env.relStateCal(self.sampleData)
         control = policy(relState).detach()
-        self.sampleData, _, done = self.env.stepVirtual(self.sampleData, control)
+        self.sampleData, _, done = self.env.stepVirtual(self.sampleData, control, noise = self.refNoise)
         self.sampleDataLife += 1
         if sum(done==True) >0:
             self.sampleData[done==1] = self.env.resetRandom(sum(done==1))
@@ -68,7 +69,7 @@ class Train():
         for _ in range(self.stepForwardPEV):
             relState = self.env.relStateCal(stateNext)
             control = policy(relState)
-            stateNext, reward, done = self.env.stepVirtual(stateNext, control)
+            stateNext, reward, done = self.env.stepVirtual(stateNext, control, noise = self.refNoise)
             valueTaeget += reward * self.gammarForward * (~done)
             self.gammarForward *= self.gammar
         self.accumulateReward = valueTaeget.clone()

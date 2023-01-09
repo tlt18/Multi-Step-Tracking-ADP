@@ -58,8 +58,13 @@ class TrackingEnv(gym.Env):
         self.stateHigh = [5*self.refV, 5*self.refV, 20, inf, inf, 2 * np.pi]
         self.changeRefNum(config.refNum)
         self.randomTestNum = 0
+        # store state and action for MPC during training
         self.MPCState = None
         self.MPCAction = None
+        # history data for random sample in self.stepVirtual
+        self.randomLTrain = None
+        self.randomPhiTrain = None 
+        self.randomHeadTrain = None
 
     def changeRefNum(self, refNum):
         self.refNum = refNum
@@ -179,14 +184,14 @@ class TrackingEnv(gym.Env):
         return newState, reward, done
 
 
-    def stepVirtual(self, state, control):
+    def stepVirtual(self, state, control, noise = 0):
         newState = torch.empty_like(state)
         temp = \
             torch.stack(self.vehicleDynamic(state[:, -3], state[:, -2], state[:, -1], state[:, 0],
                                             state[:, 1], state[:, 2], control[:, 0], control[:, 1]), -1)
         newState[:, -3:] = temp[:, :3] # x, y, phi
         newState[:, :3] = temp[:, 3:] # u, v, omega
-        newState[:, 3:-3] = self.refDynamicVirtual(state[:, 3:-3])
+        newState[:, 3:-3] = self.refDynamicVirtual(state[:, 3:-3], noise = noise)
         reward = self.calReward(state, control)
         done = self.isDone(newState, control)
         return newState, reward, done
@@ -246,20 +251,40 @@ class TrackingEnv(gym.Env):
         return [x_1, y_1, phi_1, u_1, v_1, omega_1]
 
 
-    def refDynamicVirtual(self, refState, MPCflag = 0):
+    def checkRandomTrain(self, batchSize):
+        if self.randomLTrain == None or batchSize != self.randomLTrain.size(0):
+            self.randomLTrain = 2 * (torch.rand(batchSize) - 1/2)
+            self.randomPhiTrain = 2 * (torch.rand(batchSize) - 1/2)
+            self.randomHeadTrain = 2 * (torch.rand(batchSize) - 1/2)
+        else:
+            self.randomLTrain.clip(min = -1, max = 1)
+            self.randomPhiTrain.clip(min = -1, max = 1)
+            self.randomHeadTrain.clip(min = -1, max = 1)
+
+
+    def refDynamicVirtual(self, refState, MPCflag = 0, noise = 0):
         # Input: N steps ref point
         # Output: N steps ref point
         if MPCflag == 0:
             newRefState = torch.empty_like(refState)
             newRefState[:, :-3] = refState[:, 3:]
-            # TODO: add noise to refDeltx
-            refDeltax = torch.sqrt(torch.pow(refState[:, -5]-refState[:, -2],2) + torch.pow(refState[:, -6]-refState[:, -3],2))
-            # refDeltax = self.T * self.refV
-            newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refState[:, -1])
-            newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refState[:, -1])
-            newRefState[:, -1] = refState[:, -1]
+            # random noise
+            weight = 0.1
+            self.checkRandomTrain(refState.size(0))
+            self.randomLTrain = self.randomLTrain * (1-weight) + 2 * (torch.rand(refState.size(0)) - 1/2) * weight
+            self.randomPhiTrain = self.randomPhiTrain * (1-weight) + 2 * (torch.rand(refState.size(0)) - 1/2) * weight
+            self.randomHeadTrain = self.randomHeadTrain * (1-weight) + 2 * (torch.rand(refState.size(0)) - 1/2) * weight
+            refDeltax = torch.sqrt(
+                torch.pow(refState[:, -5]-refState[:, -2],2) 
+                + torch.pow(refState[:, -6]-refState[:, -3],2)
+                ) + self.refV * self.T / 10 * noise * self.randomLTrain
+            refPhi = refState[:, -1] + np.pi / 60 * noise * self.randomPhiTrain
+            refHead = refState[:, -1] + np.pi / 60 * noise * self.randomHeadTrain
+            newRefState[:, -3] = refState[:, -3] + refDeltax * torch.cos(refPhi)
+            newRefState[:, -2] = refState[:, -2] + refDeltax * torch.sin(refPhi)
+            newRefState[:, -1] = refHead
         else:
-            return self.refDynamicVirtual(torch.tensor([refState]), MPCflag = 0)[0].tolist()
+            return self.refDynamicVirtual(torch.tensor([refState]), MPCflag = 0, noise = noise)[0].tolist()
         return newRefState
 
 
