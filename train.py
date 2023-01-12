@@ -21,7 +21,9 @@ class Train():
         self.lifeMax = config.lifeMax
         self.refNoise = config.refNoise
         self.statelifeMax = torch.rand(self.sampleSize) * config.lifeMax
-        self.sampleData = torch.empty([self.sampleSize, self.env.stateDim])
+        self.sampleData = None
+        self.sapleInfo = None
+        self.tanLine = config.tanLine
         self.sampleDataLife = torch.zeros(self.sampleSize)
         self.accumulateReward = None
         self.stateForwardNext = None
@@ -31,33 +33,35 @@ class Train():
         self.reset()
 
     def reset(self):
-        self.sampleData = self.env.resetRandom(self.batchSize)
+        self.sampleData, self.sampleInfo = self.env.resetSpecific(self.batchSize)
         for i in range(self.sampleSize):
-            self.buffer.push(self.sampleData[i])
+            self.buffer.push(torch.cat([self.sampleData[i], self.sampleInfo[i]], dim = -1))
 
     def update(self, policy):
         relState = self.env.relStateCal(self.sampleData)
         control = policy(relState).detach()
-        self.sampleData, _, done = self.env.stepVirtual(self.sampleData, control, noise = self.refNoise)
+        self.sampleData, _, done, self.sampleInfo = self.env.stepSpecificRef(self.sampleData, control, self.sampleInfo)
         self.sampleDataLife += 1
         if sum(done==True) >0:
-            self.sampleData[done==1] = self.env.resetRandom(sum(done==1))
+            self.sampleData[done==1], self.sampleInfo[done==1] = self.env.resetSpecific(sum(done==1))
             self.sampleDataLife[done==1] = 0
         if sum(self.sampleDataLife > self.statelifeMax) > 0:
             temp = (self.sampleDataLife > self.statelifeMax)
-            self.sampleData[temp] =self.env.resetRandom(sum(temp))
+            self.sampleData[temp], self.sampleInfo[temp] =self.env.resetSpecific(sum(temp))
             self.sampleDataLife[temp] = 0
             self.statelifeMax[temp] = torch.rand(sum(temp)) * self.lifeMax
         # The sampled data is stored into replaybuffer
         for i in range(self.sampleSize):
-            self.buffer.push(self.sampleData[i])
+            self.buffer.push(torch.cat([self.sampleData[i], self.sampleInfo[i]], dim = -1))
 
     def policyEvaluate(self, policy, value):
         # TODO: warm buffer
         while len(self.buffer) < self.warmBuffer:
             self.update(policy)
         # use replay buffer
-        self.batchData = torch.stack(self.buffer.sample(self.batchSize))
+        batchData_ = torch.stack(self.buffer.sample(self.batchSize))
+        self.batchData = batchData_[:, :-2]
+        self.batchInfo = batchData_[:, -2:]
         # use sample data
         # self.batchData = self.sampleData
 
@@ -65,11 +69,12 @@ class Train():
         valuePredict = value(relState)
         valueTaeget = torch.zeros(self.batchSize)
         stateNext = self.batchData.clone()
+        infoNext = self.batchInfo.clone()
         self.gammarForward = 1
         for _ in range(self.stepForwardPEV):
             relState = self.env.relStateCal(stateNext)
             control = policy(relState)
-            stateNext, reward, done = self.env.stepVirtual(stateNext, control, noise = self.refNoise)
+            stateNext, reward, done, infoNext = self.env.stepSpecificRef(stateNext, control, infoNext, tanLine = self.tanLine)
             valueTaeget += reward * self.gammarForward * (~done)
             self.gammarForward *= self.gammar
         self.accumulateReward = valueTaeget.clone()

@@ -184,10 +184,10 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
     value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
     solver = Solver()
-    initialState = env.resetSpecificCurve(1, curveType) # [u,v,omega,[xr,yr,phir],x,y,phi]
-
+    initialState, info = env.resetSpecific(1, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
     # ADP
     stateAdp = initialState.clone()
+    infoAdp = info.clone()
     controlADPList = np.empty(0)
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
@@ -202,7 +202,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
         end = time.time()
         timeADP = np.append(timeADP, end - start)
         controlAdp = controlAdp.detach()
-        stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = curveType)
+        stateAdp, reward, done, infoAdp = env.stepSpecificRef(stateAdp, controlAdp, infoAdp)
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
         count += 1
@@ -223,6 +223,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
         env.randomTestReset()
         print("Start Solving MPC-{}!".format(mpcstep))
         tempstate = initialState[0].tolist()
+        infoMpc = info[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
         count = 0
@@ -233,16 +234,23 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
         while(count < env.testStepReal[curveType]):
             # MPC
             start = time.time()
-            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
+            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc)
             end = time.time()
             timeMPC = np.append(timeMPC, end - start)
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
             stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
             action = control[0].tolist()
+
             reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
             stateMpc = env.vehicleDynamic(
                 stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
-            refStateMpc = env.refDynamicReal(refStateMpc, MPCflag=1, curveType=curveType)
+            refStateMpc[:-3] = refStateMpc[3:]
+            refStateMpc[-3:] = [
+                env.trajectoryList.calx(infoMpc[0] + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+                env.trajectoryList.caly(infoMpc[0]  + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+                env.trajectoryList.calphi(infoMpc[0]  + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+            ]
+            infoMpc[0] += env.T
             rewardMPC = np.append(rewardMPC, reward)
             controlMPCList = np.append(controlMPCList, control[0])
             count += 1
@@ -852,81 +860,16 @@ def main(ADP_dir):
     #   'figure.figsize': (9.0, 6.5),
         'xtick.labelsize': 18,
         'ytick.labelsize': 18,
-        'axes.unicode_minus': False}
+        'axes.unicode_minus': False,
+        'font.size': 12.5,
+        'figure.figsize': (10, 6.4)
+        }
     plt.rcParams.update(parameters)
 
-    # 检查一下reward是否一样
-    
-    # 1. 真实时域中MPC表现
-    # MPC参考点更新按照真实参考轨迹
-    # 测试MPC跟踪性能
-    # simu_dir = "./Simulation_dir/simulationMPC" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationMPC(MPCStep, simu_dir)
-
-    # 2. 虚拟时域中MPC表现（开环控制）
-    # simu_dir = "./Simulation_dir/simulationOpen" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationOpen(MPCStep, simu_dir)
-
-    # 3. 单步ADP、MPC测试
-    # simu_dir = ADP_dir + '/simulationOneStep' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    # os.makedirs(simu_dir, exist_ok=True)
-    # simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum=200)
-
-    # 4. 真实时域ADP、MPC应用
-    seed = 3
-    plt.rcParams['font.size'] = 12.5
-    plt.rcParams['figure.figsize'] = (8, 6.4)
     simu_dir = ADP_dir + '/simulationReal/sine'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = seed)
+    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine')
 
-    simu_dir = ADP_dir + '/simulationReal/DLC'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'DLC', seed = seed)
-
-    simu_dir = ADP_dir + '/simulationReal/TurnLeft'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnLeft', seed = seed)
-
-    simu_dir = ADP_dir + '/simulationReal/TurnRight'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'TurnRight', seed = seed)
-
-    simu_dir = ADP_dir + '/simulationReal/RandomTest'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'RandomTest', seed = seed)
-    
-    # 5. 虚拟时域ADP、MPC应用
-    plt.rcParams['figure.figsize'] = (9.2, 6.4)
-    plt.rcParams['font.size'] = 18
-    simu_dir = ADP_dir + '/simulationVirtual'
-    os.makedirs(simu_dir, exist_ok=True)
-    for seed in range(100):
-    # for seed in [96]:
-        simulationVirtual(MPCStep, ADP_dir, simu_dir, noise = 0.8, seed = seed)
-    print("-"*100)
-    errorList = np.loadtxt(simu_dir + "/RelError.csv", delimiter=',', skiprows=1)
-    print('Mean Acceleration Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,0])*100,np.mean(errorList[:,1])*100))
-    print('Mean Steering Angle Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,2])*100,np.mean(errorList[:,3])*100))
-    print('Mean Distance Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,4])*100,np.mean(errorList[:,5])*100))
-    print('Mean Heading Angle Error Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,6])*100,np.mean(errorList[:,7])*100))
-    print('Mean Utility  Function Error | Mean: {:.4f}%, Max: {:.4f}%'.format(np.mean(errorList[:,8])*100,np.mean(errorList[:,9])*100))
-    plt.figure()
-    plt.boxplot([errorList[:, 1]*100, errorList[:, 3]*100, errorList[:, 5]*100, errorList[:, 7]*100],patch_artist=True,widths=0.4,
-                showmeans=True,
-                meanprops={'marker':'+',
-                        'markerfacecolor':'k',
-                        'markeredgecolor':'k',
-                        'markersize':5})
-    plt.xticks([1,2,3,4],['Acceleration','Steering Angle','Distance Error','Heading Error'])
-    # plt.ylim(0,9)
-    plt.grid(axis='y',ls='--',alpha=0.5)
-    plt.ylabel('Maximum relative error [%]',fontsize=18)
-    plt.tight_layout()
-    plt.savefig(simu_dir + '/relative-error.png')
-    plt.close()
 
 def compareHorizon(ADP_list, refNum_list, seed = 0):
     simu_dir = "./Simulation_dir/compareHorizon" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -1158,7 +1101,7 @@ def compareHorizon(ADP_list, refNum_list, seed = 0):
     plt.savefig(simu_dir + '/adp_cumheading_error-t.png')
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2023-01-06-11-43-31'
+    ADP_dir = './Results_dir/2023-01-09-19-00-08'
     main(ADP_dir)
 
     # parameters = {'axes.labelsize': 14,

@@ -65,6 +65,8 @@ class TrackingEnv(gym.Env):
         self.randomLTrain = None
         self.randomPhiTrain = None 
         self.randomHeadTrain = None
+        # specific curve
+        self.trajectoryList = MultiRefDynamics()
 
     def changeRefNum(self, refNum):
         self.refNum = refNum
@@ -474,6 +476,110 @@ class TrackingEnv(gym.Env):
                 plt.title("Ts: "+str(Ts*1000)+" [ms]")
                 plt.savefig(log_dir + "/a"+str(action[0])+"_delta"+str(action[1])+'T_s'+str(self.T)+".png", bbox_inches='tight')
                 plt.close()
+
+    def stepSpecificRef(self, state, control, info, tanLine = False):
+        reft = info[:, 0]
+        refID = info[:, 1]
+        newState = torch.empty_like(state)
+        temp = \
+            torch.stack(self.vehicleDynamic(state[:, -3], state[:, -2], state[:, -1], state[:, 0],
+                                            state[:, 1], state[:, 2], control[:, 0], control[:, 1]), -1)
+        newState[:, -3:] = temp[:, :3] # x, y, phi
+        newState[:, :3] = temp[:, 3:] # u, v, omega
+        if tanLine == False:
+            newState[:, 3:-6] = state[:, 6:-3] # ref
+            newState[:, -6:-3] = torch.stack((
+                self.trajectoryList.calx(reft + self.refNum * self.T, refID),
+                self.trajectoryList.caly(reft + self.refNum * self.T, refID),
+                self.trajectoryList.calphi(reft + self.refNum * self.T, refID)),
+                dim = -1)
+        else:
+            # if rollout using tanLine, the info will be disabled.
+            newState[:, 3:-3] = self.refDynamicVirtual(state[:, 3:-3], noise = 0)
+        nextInfo = torch.empty_like(info)
+        nextInfo[:, 0] = info[:, 0] + self.T
+        nextInfo[:, 1] = info[:, 1]
+        reward = self.calReward(state, control)
+        done = self.isDone(newState, control)
+        return newState, reward, done, nextInfo
+
+
+    def resetSpecific(self, stateNum, noise = 1, MPCflag = 0):
+        reft = torch.rand(stateNum) * 12 * np.pi /5
+        reft = torch.rand(stateNum) * 12 * np.pi /5 * 0
+        refID = torch.zeros(stateNum)
+        info = torch.stack((reft, refID), dim = -1)
+        # \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
+        newState = torch.empty([stateNum, self.stateDim])
+        # u: [4*self.refV/5, 6*self.refV/5]
+        newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 5 * noise
+        # v: [-self.refV/10, self.refV/10]
+        newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * self.refV / 10 * noise
+        # omega: [-0.5, 0.5]
+        newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * 0.5 * noise
+        # [xr, yr, phir] * refNum
+        for i in range(self.refNum):
+            newState[:, 3 * i + 3] = self.trajectoryList.calx(reft + i * self.T, refID)
+            newState[:, 3 * i + 4] = self.trajectoryList.caly(reft + i * self.T, refID)
+            newState[:, 3 * i + 5] = self.trajectoryList.calphi(reft + i * self.T, refID)
+        # x, y, phi
+        newState[:, -3] = newState[:, 3] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 1 * noise
+        newState[:, -2] = newState[:, 4] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 1 * noise
+        newState[:, -1] = newState[:, 5] + 2 * (torch.rand(stateNum) - 1/2) * np.pi / 15 * noise
+        if MPCflag == 0:
+            return newState, info
+        else:
+            return newState[0].tolist(), info[0].tolist()
+
+        
+class MultiRefDynamics():
+    def __init__(self) -> None:
+        self.refTrajectory = [sineCurve(1, 1/6)]
+
+    def calx(self, t, refID, MPCflag = 0):
+        if MPCflag == 0:
+            x = torch.zeros_like(t)
+            for i, refTraj in enumerate(self.refTrajectory):
+                x = x + (refID == i) * refTraj.calx(t)
+            return x
+        else:
+            return self.calx(torch.tensor([t]), refID, MPCflag = 0)[0].tolist()
+
+    def caly(self, t, refID, MPCflag = 0):
+        if MPCflag == 0:
+            y = torch.zeros_like(t)
+            for i, refTraj in enumerate(self.refTrajectory):
+                y = y + (refID == i) * refTraj.caly(t)
+            return y
+        else:
+            return self.caly(torch.tensor([t]), refID, MPCflag = 0)[0].tolist()
+
+    def calphi(self, t, refID, MPCflag = 0):
+        if MPCflag == 0:
+            phi = torch.zeros_like(t)
+            for i, refTraj in enumerate(self.refTrajectory):
+                phi = phi + (refID == i) * refTraj.calphi(t)
+            return phi
+        else:
+            return self.calphi(torch.tensor([t]), refID, MPCflag = 0)[0].tolist()
+
+class sineCurve():
+    def __init__(self, A = 1, K = 1/6) -> None:
+        # y_r = A * sin(K * x_r)
+        self.A = A
+        self.K = K
+        self.refV = 5
+    
+    def calx(self, t: torch.Tensor) -> torch.Tensor:
+        # fixed speed
+        return self.refV * t
+
+    def caly(self, t: torch.Tensor) -> torch.Tensor:
+        return self.A * torch.sin(self.K * self.refV * t)
+
+    def calphi(self, t: torch.Tensor) -> torch.Tensor:
+        return torch.atan(self.A * self.K * torch.cos(self.K * self.refV * t))
+
 
 if __name__ == '__main__':
     # ADP_dir = './Results_dir/2022-04-09-10-12-16'

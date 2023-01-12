@@ -54,7 +54,7 @@ class Solver():
             2 * pow(action[1], 2) # 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
-    def MPCSolver(self, initState, refState, predictStep, isReal = True):
+    def MPCSolver(self, initState, refState, predictStep, isReal = True, info = None):
         # x: optimization variable
         # g: inequality constraints
         # J: cost function
@@ -70,6 +70,9 @@ class Solver():
         lbx += initState
         ubx += initState
         gammar = 1
+        reft = info[0]
+        refID = info[1]
+        refState_ = refState[:]
         for k in range(1, predictStep + 1):
             Uname = 'U' + str(k-1)
             Uk = SX.sym(Uname, self.actionDim)
@@ -80,13 +83,19 @@ class Solver():
             ubx += self.actionHigh
 
             # cost function
-            J += self.calCost(Xk, refState, Uk) * gammar
+            J += self.calCost(Xk, refState_, Uk) * gammar
             gammar *= self.gammar
             ######################### Real/vVirtual reference points update ############################
             if isReal==True:
-                refState = self.env.refDynamicReal(refState, MPCflag=1)
+                refState_[:-3] = refState_[3:]
+                refState_[-3:] = [
+                    self.env.trajectoryList.calx(reft + self.env.refNum * self.env.T, refID, MPCflag = 1),
+                    self.env.trajectoryList.caly(reft + self.env.refNum * self.env.T, refID, MPCflag = 1),
+                    self.env.trajectoryList.calphi(reft + self.env.refNum * self.env.T, refID, MPCflag = 1),
+                ]
+                reft += self.env.T
             else:
-                refState = self.env.refDynamicVirtual(refState, MPCflag=1)
+                refState_ = self.env.refDynamicVirtual(refState_, MPCflag=1)
 
             # Dynamic Constraints
             XNext = self.F(Xk, Uk)

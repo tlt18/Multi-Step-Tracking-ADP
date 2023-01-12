@@ -4,13 +4,13 @@ import torch
 
 class trainConfig():
     def __init__(self):
-        self.iterationMax = 100000
+        self.iterationMax = 40000
         self.iterationPrint = 100
         self.iterationSave = 1000
-        self.lrPolicy = 1e-3
-        self.lrValue = 1e-2
-        # self.lrPolicy = 1e-5
-        # self.lrValue = 1e-4
+        # self.lrPolicy = 1e-3
+        # self.lrValue = 1e-2
+        self.lrPolicy = 1e-4
+        self.lrValue = 1e-3
         # need to match
         self.stepForwardPEV = 30
         self.gammar = 0.95
@@ -20,6 +20,7 @@ class trainConfig():
         self.sampleSize = 256
         self.warmBuffer = 4 * 256
         self.capacity = 256000
+        self.tanLine = True
 
 
 class vehicleDynamic():
