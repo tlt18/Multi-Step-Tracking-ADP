@@ -20,7 +20,7 @@ class trainConfig():
         self.sampleSize = 256
         self.warmBuffer = 4 * 256
         self.capacity = 256000
-        self.tanLine = True
+        self.tanLine = False
 
 
 class vehicleDynamic():
@@ -51,7 +51,7 @@ class vehicleDynamic():
         self.testStepVirtual = 40
         # TODO: to 100
         self.testSampleNum = 10
-        self.refNum = 10
+        self.refNum = 9
         self.mpcstep = 60
 
 class MPCConfig():

@@ -70,8 +70,9 @@ class Solver():
         lbx += initState
         ubx += initState
         gammar = 1
-        reft = info[0]
-        refID = info[1]
+        if info != None:
+            reft = info[0]
+            refID = info[1]
         refState_ = refState[:]
         for k in range(1, predictStep + 1):
             Uname = 'U' + str(k-1)

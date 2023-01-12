@@ -16,7 +16,6 @@ from network import Actor, Critic
 from solver import Solver
 
 def simulationMPC(MPCStep, simu_dir, curveType = 'sine'):
-
     env = TrackingEnv()
     env.seed(0)
     stateDim = env.stateDim
@@ -809,32 +808,51 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False, isPrint = True):
 def simuVirtualTraning(env, ADP_dir, noise = 1):
     config = MPCConfig()
     mpcstep = max(config.MPCStep)
+    relstateDim = env.relstateDim
+    actionDim = env.actionSpace.shape[0]
     if env.MPCState == None:
         solver = Solver()
-        env.MPCState = env.resetRandom(env.testSampleNum, noise = noise)
+        env.MPCState, env.MPCinfo = env.resetSpecific(env.testSampleNum, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
         env.MPCAction = []
         for testNum in range(env.testSampleNum):
+            count = 0
             tempstate = env.MPCState[testNum].tolist()
             stateMpc = tempstate[-3:] + tempstate[:3]
             refStateMpc = tempstate[3:-3]
-            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal=False)
-            env.MPCAction.append(control)
-    relstateDim = env.relstateDim
-    actionDim = env.actionSpace.shape[0]
+            infoMPC = env.MPCinfo[testNum].tolist()
+            MPCaction = np.empty(0)
+            while(count < env.testStepReal["sine"]):
+                _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMPC)
+                action = control[0].tolist()
+                stateMpc = env.vehicleDynamic(
+                    stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
+                refStateMpc[:-3] = refStateMpc[3:]
+                refStateMpc[-3:] = [
+                    env.trajectoryList.calx(infoMPC[0] + env.refNum * env.T, infoMPC[1], MPCflag = 1),
+                    env.trajectoryList.caly(infoMPC[0]  + env.refNum * env.T, infoMPC[1], MPCflag = 1),
+                    env.trajectoryList.calphi(infoMPC[0]  + env.refNum * env.T, infoMPC[1], MPCflag = 1),
+                ]
+                infoMPC[0] += env.T
+                MPCaction =  np.append(MPCaction, control[0])
+                count += 1
+            MPCaction = np.reshape(MPCaction, (-1, actionDim))
+            env.MPCAction.append(MPCaction)
+    # ADP
     policy = Actor(relstateDim, actionDim)
     policy.loadParameters(ADP_dir)
     count = 0
     stateAdp = env.MPCState.clone()
+    infoADP = env.MPCinfo.clone()
     controlADPList = np.empty(0)
     rewardList = np.empty(0)
-    while(count < mpcstep):
+    while(count < env.testStepReal["sine"]):
         relState = env.relStateCal(stateAdp)
         controlAdp = policy(relState).detach()
-        stateAdp, reward, done = env.stepVirtual(stateAdp, controlAdp)
+        stateAdp, reward, done, infoADP = env.stepSpecificRef(stateAdp, controlAdp, infoADP)
         controlADPList = np.append(controlADPList, controlAdp.numpy())
         rewardList = np.append(rewardList, reward.numpy().mean())
         count += 1
-    controlADPList =np.reshape(controlADPList, (mpcstep, env.testSampleNum, actionDim))
+    controlADPList =np.reshape(controlADPList, (env.testStepReal["sine"], env.testSampleNum, actionDim))
     ADPAction = np.array(np.transpose(controlADPList, (1, 0, 2)))
     errorAccMaxList = np.empty(0)
     errorDeltaMaxList = np.empty(0)

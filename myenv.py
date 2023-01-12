@@ -60,6 +60,7 @@ class TrackingEnv(gym.Env):
         self.randomTestNum = 0
         # store state and action for MPC during training
         self.MPCState = None
+        self.MPCinfo = None
         self.MPCAction = None
         # history data for random sample in self.stepVirtual
         self.randomLTrain = None
