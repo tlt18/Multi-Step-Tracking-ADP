@@ -22,7 +22,7 @@ isSimu = True
 # parameters setting
 config = trainConfig()
 env = TrackingEnv()
-env.seed(0)
+env.seed(30)
 
 use_gpu = torch.cuda.is_available()
 relstateDim = env.relstateDim
@@ -49,6 +49,7 @@ shutil.copy('./train.py', log_dir + '/code/train.py')
 shutil.copy('./simulation.py', log_dir + '/code/simulation.py')
 shutil.copy('./solver.py', log_dir + '/code/solver.py')
 shutil.copy('./replaybuffer.py', log_dir + '/code/replaybuffer.py')
+shutil.copy('./tensorboardplot.py', log_dir + '/code/tensorboardplot.py')
 
 
 dataWriter = SummaryWriter(log_dir + '/train')
@@ -83,14 +84,13 @@ if isTrain:
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnRight')
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'RandomTest')
             # test in virtual time
-            env.policyTestVirtual(policy, iterarion, log_dir+'/train', noise = 1)
-            rewardSum, errorAcc, errorDelta = simulation.simuVirtualTraning(env, log_dir, noise = 1)
-            dataWriter.add_scalar('Virtual cost', rewardSum, iterarion)
-            dataWriter.add_scalar('Acc max error', errorAcc, iterarion)
-            dataWriter.add_scalar('Delta max error', errorDelta, iterarion)
-            print("Accumulated Cost in virtual time is {:.4f}".format(rewardSum))
-            print("Acc Max Error is {:.2f}%".format(errorAcc * 100))
-            print("Delta Max Error is {:.2f}%".format(errorDelta * 100))
+            rewardSum1 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 0)
+            rewardSum2 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 1)
+            dataWriter.add_scalar('Sine cost', rewardSum1, iterarion)
+            dataWriter.add_scalar('DLC cost', rewardSum2, iterarion)
+            print("Accumulated Cost in sine is {:.4f}".format(rewardSum1))
+            print("Accumulated Cost in DLC is {:.4f}".format(rewardSum2))
+
             # time consume
             timeDelta = time.time() - timeBegin
             h = timeDelta//3600

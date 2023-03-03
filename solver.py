@@ -86,7 +86,7 @@ class Solver():
             # cost function
             J += self.calCost(Xk, refState_, Uk) * gammar
             gammar *= self.gammar
-            ######################### Real/vVirtual reference points update ############################
+            ######################### Real/Virtual reference points update ############################
             if isReal==True:
                 refState_[:-3] = refState_[3:]
                 refState_[-3:] = [

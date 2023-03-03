@@ -15,175 +15,28 @@ from myenv import TrackingEnv
 from network import Actor, Critic
 from solver import Solver
 
-def simulationMPC(MPCStep, simu_dir, curveType = 'sine'):
-    env = TrackingEnv()
-    env.seed(0)
-    stateDim = env.stateDim
-    actionDim = env.actionSpace.shape[0]
-    solver = Solver()
-    for mpcstep in MPCStep:
-        print("----------------------Start Solving!----------------------")
-        print("MPCStep: {}".format(mpcstep))
-        # plt.ion()
-        plt.figure(mpcstep)
-        tempstate = env.initializeState(200)
-        tempstate = tempstate[0].tolist() # 这里就取了一个，可以考虑从0开始取
-        state = tempstate[-3:] + tempstate[:3]
-        refState = tempstate[3:6]
-        count = 0
-        x = torch.linspace(0, 30*np.pi, 1000)
-        y, _ = env.referenceCurve(x)
-        plt.xlim(-5, 100)
-        plt.ylim(-1.1, 1.1)
-        plt.plot(x, y, color='gray')
-        controlMPC = np.empty(0)
-        stateMPC = np.empty(0)
-        while(count < env.testStepReal[curveType]):
-            _, control = solver.MPCSolver(state, refState, mpcstep, isReal = True)
-            stateMPC = np.append(stateMPC, np.array(state))
-            stateMPC = np.append(stateMPC, np.array(refState))
-            action = control[0].tolist()
-            state = env.vehicleDynamic(
-                state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
-            refState = env.refDynamicReal(refState[0], MPCflag = 1)[0:3]
-            plt.scatter(state[0], state[1], color='red', s=2)
-            plt.scatter(refState[0], refState[1], color='blue', s=2)
-            controlMPC = np.append(controlMPC, control[0])
-            # plt.pause(0.05)
-            count += 1
-            if count % 10 == 0:
-                print('count/totalStep: {}/{}'.format(count, env.testStepReal[curveType]))
-        plt.title('MPCStep:'+str(mpcstep))
-        plt.savefig(simu_dir + '/OnlyMPCStep'+str(mpcstep)+'.png')
-        # plt.ioff()
-        plt.close()
-        controlMPC = np.reshape(controlMPC, (-1, actionDim))
-        stateMPC = np.reshape(stateMPC, (-1, stateDim))
-        saveMPC = np.concatenate((stateMPC, controlMPC), axis = 1)
-        with open(simu_dir + "/simulationMPC_" + str(mpcstep)+".csv", 'ab') as f:
-            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega,xr,yr,phir,a,delta")
-
-def simulationOpen(MPCStep, simu_dir):
-    # 虚拟时域中MPC表现（开环控制）
-    env = TrackingEnv()
-    solver = Solver()
-    for mpcstep in MPCStep:
-        print("----------------------Start Solving!----------------------")
-        print("MPCStep: {}".format(mpcstep))
-        plt.figure(mpcstep)
-        tempstate = env.initializeState(200)
-        tempstate = tempstate[0].tolist() # 这里就取了一个，可以考虑从0开始取
-        state = tempstate[-3:] + tempstate[:3]
-        refState = tempstate[3:6]
-        x = torch.linspace(0, 30*np.pi, 1000)
-        y, _ = env.referenceCurve(x)
-        plt.xlim(-5, 100)
-        plt.ylim(-1.1, 1.1)
-        plt.plot(x, y, color='gray')
-        count = 0
-        _, control = solver.MPCSolver(state, refState, mpcstep, isReal=False)
-        plt.scatter(state[0], state[1], color='red', s=5)
-        plt.scatter(refState[0], refState[1], color='blue', s=5)
-        stateList = np.empty(0)
-        refList = np.empty(0)
-        stateList = np.append(stateList, state)
-        refList = np.append(refList, refState)
-        while(count < mpcstep):
-            action = control[count].tolist()
-            state = env.vehicleDynamic(
-                state[0], state[1], state[2], state[3], state[4], state[5], action[0], action[1], MPCflag=1)
-            refState = env.refDynamicVirtual(refState, MPCflag=1)[:3]
-            stateList = np.append(stateList, state)
-            refList = np.append(refList, refState)
-            plt.scatter(state[0], state[1], color='red', s=5)
-            plt.scatter(refState[0], refState[1], color='blue', s=5)
-            count += 1
-        plt.title('MPCStep:'+str(mpcstep))
-        plt.savefig(simu_dir + '/simulationOpen'+str(mpcstep)+'.png')
-        plt.close()
-        stateList = np.reshape(stateList, (-1, 6))
-        refList = np.reshape(refList, (-1, env.refNum * 3))
-        if mpcstep==MPCStep[-1]:
-            animationPlot(stateList[:,:2], refList[:,:2],'x', 'y')
-        
-def simulationOneStep(MPCStep, ADP_dir, simu_dir, stateNum):
-    # 单步ADP、MPC测试
-    env = TrackingEnv()
-    env.seed(0)
-    relstateDim = env.relstateDim
-    actionDim = env.actionSpace.shape[0]
-    policy = Actor(relstateDim, actionDim)
-    policy.loadParameters(ADP_dir)
-    value = Critic(relstateDim, 1)
-    value.loadParameters(ADP_dir)
-    solver = Solver()
-    initialState = env.initializeState(stateNum) # [u,v,omega,[xr,yr,phir],x,y,phi]
-    timeStart = time.time()
-    relState = env.relStateCal(initialState)
-    controlADP = policy(relState).detach()
-    timeADP = (time.time() - timeStart)
-    controlADP = controlADP.numpy()
-    print("ADP consumes {:.3f}s {} step".format(timeADP, stateNum))
-    for mpcstep in MPCStep:
-        timeMPC = 0
-        controlMPC = np.empty(0)
-        print("----------------------Start Solving MPC" +str(mpcstep)+"!----------------------")
-        for i in range(stateNum):
-            tempstate = initialState[i].tolist() # 这里就取了一个，可以考虑从0开始取
-            state = tempstate[-3:] + tempstate[:3]
-            refState = tempstate[3:6]
-            timeStart = time.time()
-            _, control = solver.MPCSolver(state, refState, mpcstep, isReal=False)
-            timeMPC += time.time() - timeStart
-            controlMPC = np.append(controlMPC, control[0])
-        controlMPC = np.reshape(controlMPC, (-1, actionDim))
-        print("MPC{} consumes {:.3f}s {} step".format(mpcstep, timeMPC, stateNum))
-        # TODO: 这么做合适吗
-        maxAction = np.array(env.actionHigh)
-        minAction = np.array(env.actionLow)
-        # maxAction = np.max(controlMPC, 0)
-        # minAction = np.min(controlMPC, 0)
-        relativeError = np.abs(
-            (controlADP - controlMPC)/(maxAction - minAction))
-        relativeErrorMax = np.max(relativeError, 0)
-        relativeErrorMean = np.mean(relativeError, 0)
-        for i in range(actionDim):
-            print('Relative error for action{}'.format(i+1))
-            print('Mean: {:.2f}%, Max: {:.2f}%'.format(relativeErrorMean[i]*100,relativeErrorMax[i]*100))
-        saveMPC = np.concatenate((controlADP, controlMPC, relativeError), axis = 1)
-        with open(simu_dir + "/simulationOneStepMPC_"+str(mpcstep)+".csv", 'ab') as f:
-            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="ADP_a,ADP_delta,MPC_a,MPC_delta,rel_a,rel_delta")
-        plt.figure()
-        data = relativeError[:, 0]
-        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
-        plt.xlabel('Relative Error')
-        plt.ylabel('Frequency')
-        plt.title('Relative Error of control a')
-        plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_a.png')
-        plt.close()
-        plt.figure()
-        data = relativeError[:, 1]
-        plt.hist(data, bins=30, weights = np.zeros_like(data) + 1 / len(data))
-        plt.xlabel('Relative Error')
-        plt.ylabel('Frequency')
-        plt.title('Relative Error of control delta')
-        plt.savefig(simu_dir + '/simulationOneStep'+str(mpcstep)+'_delta.png')
-        plt.close()
-
-def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
+def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine', seed = 0):
     print("----------------------Curve Type: {}----------------------".format(curveType))
     plotDelete = 0
     # 真实时域ADP、MPC应用
     env = TrackingEnv()
     env.seed(seed)
+    if refNum != None:
+        env.changeRefNum(refNum)
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
     policy = Actor(relstateDim, actionDim)
     policy.loadParameters(ADP_dir)
     value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
-    solver = Solver()
-    initialState, info = env.resetSpecific(1, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
+    solver = Solver(env)
+    # refIDinit
+    if curveType == 'sine':
+        initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
+    elif curveType == 'DLC':
+        initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 1)
+    elif curveType == 'Circle':
+        initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 2)
     # ADP
     stateAdp = initialState.clone()
     infoAdp = info.clone()
@@ -239,7 +92,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine', seed = 0):
             stateMPCList = np.append(stateMPCList, np.array(stateMpc))
             stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
             action = control[0].tolist()
-
             reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
             stateMpc = env.vehicleDynamic(
                 stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
@@ -770,6 +622,18 @@ def comparePlot(xADP, xMPC, yADP, yMPC, MPCStep, xName, yName, simu_dir, title, 
         plt.axis('scaled')
     plt.close()
 
+def comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False, xRef = None, yRef = None):
+    if isRef == True:
+        plt.plot(xRef, yRef, linewidth = 2, color = 'black', label = 'ref')
+    for i in range(len(xADP)):
+        plt.plot(xADP[i], yADP[i], linewidth = 2, label = 'ADP(N=' + str(refNum_list[i]) + ')')
+    plt.legend()
+    plt.xlabel(xName)
+    plt.ylabel(yName)
+    # plt.savefig(simu_dir + '/' + title + '.png', bbox_inches='tight')
+    plt.savefig(simu_dir + '/' + title + '.png')
+    plt.close()
+
 def animationPlot(state, refstate, xName, yName):
     plt.figure()
     plt.ion()
@@ -805,71 +669,35 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False, isPrint = True):
         plt.close()
     return relativeErrorMean, relativeErrorMax
 
-def simuVirtualTraning(env, ADP_dir, noise = 1):
+def simuVirtualTraning(env, ADP_dir, noise = -1, refIDinit = 0):
     config = MPCConfig()
     mpcstep = max(config.MPCStep)
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
-    if env.MPCState == None:
-        solver = Solver()
-        env.MPCState, env.MPCinfo = env.resetSpecific(env.testSampleNum, noise = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
-        env.MPCAction = []
-        for testNum in range(env.testSampleNum):
-            count = 0
-            tempstate = env.MPCState[testNum].tolist()
-            stateMpc = tempstate[-3:] + tempstate[:3]
-            refStateMpc = tempstate[3:-3]
-            infoMPC = env.MPCinfo[testNum].tolist()
-            MPCaction = np.empty(0)
-            while(count < env.testStepReal["sine"]):
-                _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMPC)
-                action = control[0].tolist()
-                stateMpc = env.vehicleDynamic(
-                    stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
-                refStateMpc[:-3] = refStateMpc[3:]
-                refStateMpc[-3:] = [
-                    env.trajectoryList.calx(infoMPC[0] + env.refNum * env.T, infoMPC[1], MPCflag = 1),
-                    env.trajectoryList.caly(infoMPC[0]  + env.refNum * env.T, infoMPC[1], MPCflag = 1),
-                    env.trajectoryList.calphi(infoMPC[0]  + env.refNum * env.T, infoMPC[1], MPCflag = 1),
-                ]
-                infoMPC[0] += env.T
-                MPCaction =  np.append(MPCaction, control[0])
-                count += 1
-            MPCaction = np.reshape(MPCaction, (-1, actionDim))
-            env.MPCAction.append(MPCaction)
     # ADP
     policy = Actor(relstateDim, actionDim)
     policy.loadParameters(ADP_dir)
     count = 0
-    stateAdp = env.MPCState.clone()
-    infoADP = env.MPCinfo.clone()
+    stateAdp, infoADP = env.resetSpecific(env.testSampleNum, noise = noise, refIDinit = refIDinit)
     controlADPList = np.empty(0)
     rewardList = np.empty(0)
-    while(count < env.testStepReal["sine"]):
+    if refIDinit == 0:
+        testStep = env.testStepReal["sine"]
+    elif refIDinit == 1:
+        testStep = env.testStepReal["DLC"]
+    while(count < testStep):
         relState = env.relStateCal(stateAdp)
         controlAdp = policy(relState).detach()
         stateAdp, reward, done, infoADP = env.stepSpecificRef(stateAdp, controlAdp, infoADP)
         controlADPList = np.append(controlADPList, controlAdp.numpy())
         rewardList = np.append(rewardList, reward.numpy().mean())
         count += 1
-    controlADPList =np.reshape(controlADPList, (env.testStepReal["sine"], env.testSampleNum, actionDim))
+    controlADPList =np.reshape(controlADPList, (testStep, env.testSampleNum, actionDim))
     ADPAction = np.array(np.transpose(controlADPList, (1, 0, 2)))
-    errorAccMaxList = np.empty(0)
-    errorDeltaMaxList = np.empty(0)
-    for testNum in range(env.testSampleNum):
-        # Acceleration
-        ADPData = ADPAction[testNum][:, 0]
-        MPCData = env.MPCAction[testNum][:, 0]
-        relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Acceleration', simu_dir = None, isPlot = False, isPrint = False)
-        errorAccMaxList = np.append(errorAccMaxList, relativeErrorMax)
-        # Steering Angle
-        ADPData = ADPAction[testNum][:, 1]
-        MPCData = env.MPCAction[testNum][:, 1]
-        relativeErrorMean, relativeErrorMax = calRelError(ADPData, MPCData, title = 'Steering Angle', simu_dir = None, isPlot = False, isPrint = False)
-        errorDeltaMaxList = np.append(errorDeltaMaxList, relativeErrorMax)
-    return rewardList.mean(), errorAccMaxList.mean(), errorDeltaMaxList.mean()
 
-def main(ADP_dir):
+    return rewardList.mean()
+
+def main(ADP_dir, RefNum):
     config = MPCConfig()
     MPCStep = config.MPCStep
 
@@ -886,263 +714,132 @@ def main(ADP_dir):
 
     simu_dir = ADP_dir + '/simulationReal/sine'
     os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, curveType = 'sine')
+    simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'sine')
 
+    simu_dir = ADP_dir + '/simulationReal/DLC'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'DLC')
 
-def compareHorizon(ADP_list, refNum_list, seed = 0):
+    simu_dir = ADP_dir + '/simulationReal/Circle'
+    os.makedirs(simu_dir, exist_ok=True)
+    simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'Circle')
+
+def compareHorizon(ADP_list, refNum_list, curveType = 'sine', seed = 0):
     simu_dir = "./Simulation_dir/compareHorizon" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(simu_dir, exist_ok=True)
+    print("----------------------Curve Type: {}----------------------".format(curveType))
+    plotDelete = 0
     env = TrackingEnv()
     env.seed(seed)
-    env.changeRefNum(refNum_list[-1])
-    config = MPCConfig()
-    mpcstep = config.MPCStep[-1]
-    curveType = 'RandomTest'
-    envInitialState = env.resetSpecificCurve(1, curveType) # [u, v, omega, [xr, yr, phir], x, y, phi]
-    rewardMPCAll = []
-    stateMPCAll = []
-    controlMPCAll = []
-    rewardADPAll = []
-    stateADPAll = []
-    controlADPAll = []
-    for index in range(len(refNum_list)):
-        refNum = refNum_list[index]
-        print("Number of reference states: {}".format(refNum))
+    controlAll = []
+    stateAll = []
+    rewardAll = []
+    for ADP_dir, refNum in zip(ADP_list, refNum_list):
         env.changeRefNum(refNum)
-        solver = Solver(env)
         relstateDim = env.relstateDim
         actionDim = env.actionSpace.shape[0]
-        initialRef = torch.zeros((1, refNum * 3))
-        for i in range(refNum):
-            initialRef[0, 3 * i] = env.refV * env.T * i
-        initialState = torch.cat((envInitialState[:, :3], initialRef, envInitialState[:, -3:]), 1)
-
-        # MPC
-        env.randomTestReset()
-        tempstate = initialState[0].tolist()
-        stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
-        refStateMpc = tempstate[3:-3]
-        count = 0
-        controlMPCList = np.empty(0)
-        stateMPCList = np.empty(0)
-        rewardMPC = np.empty(0)
-        while(count < env.testStepReal[curveType]):
-            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = False)
-            stateMPCList = np.append(stateMPCList, np.array(stateMpc))
-            stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
-            action = control[0].tolist()
-            reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
-            stateMpc = env.vehicleDynamic(
-                stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
-            refStateMpc = env.refDynamicReal(refStateMpc, MPCflag=1, curveType=curveType)
-            rewardMPC = np.append(rewardMPC, reward)
-            controlMPCList = np.append(controlMPCList, control[0])
-            count += 1
-        stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
-        controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
-
-        saveMPC = np.concatenate((stateMPCList, controlMPCList), axis = 1)
-        with open(simu_dir + "/MPCRefNum_"+str(refNum)+".csv", 'wb') as f:
-            np.savetxt(f, saveMPC, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*refNum + "a,delta")
-        rewardMPCAll.append(rewardMPC)
-        stateMPCAll.append(stateMPCList)
-        controlMPCAll.append(controlMPCList)
-
-        # ADP
         policy = Actor(relstateDim, actionDim)
-        policy.loadParameters(ADP_list[index])
-        env.randomTestReset()
+        policy.loadParameters(ADP_dir)
+        value = Critic(relstateDim, 1)
+        value.loadParameters(ADP_dir)
+        # refIDinit
+        if curveType == 'sine':
+            initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
+        elif curveType == 'DLC':
+            initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 1)
+        elif curveType == 'Circle':
+            initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 2)
+        initialState[0, -2] += 0.2
         stateAdp = initialState.clone()
-        count = 0
+        infoAdp = info.clone()
         controlADPList = np.empty(0)
         stateADPList = np.empty(0)
         rewardADP = np.empty(0)
+        timeADP = np.empty(0)
+        count = 0
         while(count < env.testStepReal[curveType]):
             stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy()) # x, y, phi
             stateADPList = np.append(stateADPList, stateAdp[0, :-3].numpy()) # u, v, omega, [xr, yr, phir]
             relState = env.relStateCal(stateAdp)
+            start = time.time()
             controlAdp = policy(relState)
+            end = time.time()
+            timeADP = np.append(timeADP, end - start)
             controlAdp = controlAdp.detach()
-            stateAdp, reward, done = env.stepReal(stateAdp, controlAdp, curveType = curveType)
+            stateAdp, reward, done, infoAdp = env.stepSpecificRef(stateAdp, controlAdp, infoAdp)
             controlADPList = np.append(controlADPList, controlAdp[0].numpy())
             rewardADP = np.append(rewardADP, reward.numpy())
             count += 1
         stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
         controlADPList = np.reshape(controlADPList, (-1, actionDim))
-        saveADP = np.concatenate((stateADPList, controlADPList), axis = 1)
-        with open(simu_dir + "/ADPRefNum_"+str(refNum)+".csv", 'wb') as f:
-            np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*refNum + "a,delta")
-        rewardADPAll.append(rewardADP)
-        stateADPAll.append(stateADPList)
-        controlADPAll.append(controlADPList)
+        stateADPList = np.delete(stateADPList, range(plotDelete), 0)
+        controlADPList = np.delete(controlADPList, range(plotDelete), 0)
+        rewardADP = np.delete(rewardADP, range(plotDelete), 0)
+        controlAll.append(controlADPList)
+        stateAll.append(stateADPList)
+        rewardAll.append(rewardADP)
 
     # Plot
     # stateAll: [x,y,phi,u,v,omega,[xr,yr,phir]]
     # controlAll: [a, delta]
-    # reward-t
-    MPCsaveReward = np.empty(0)
-    ADPsaveReward = np.empty(0)
-    for index in range(len(refNum_list)):
-        plt.figure(1)
-        accRewardMPC = np.cumsum(rewardMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1)])
-        MPCsaveReward = np.append(MPCsaveReward, np.array([refNum_list[index], accRewardMPC[-1]]))
-        plt.plot(np.arange(0, len(accRewardMPC)) * env.T, accRewardMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(2)
-        accRewardADP = np.cumsum(rewardADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1)])
-        ADPsaveReward = np.append(ADPsaveReward, np.array([refNum_list[index], accRewardADP[-1]]))
-        plt.plot(np.arange(0, len(accRewardADP)) * env.T, accRewardADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(1)
-    plt.legend()
-    plt.xlabel('Time [s]')
-    plt.ylabel('Accumulated cost')
-    plt.savefig(simu_dir + '/mpc_accumulate_cost.png')
-    plt.figure(2)
-    plt.legend()
-    plt.xlabel('Time [s]')
-    plt.ylabel('Accumulated cost')
-    plt.savefig(simu_dir + '/adp_accumulate_cost.png')
-    plt.figure(13)
-    MPCsaveReward = np.reshape(MPCsaveReward, (-1, 2))
-    ADPsaveReward = np.reshape(ADPsaveReward, (-1, 2))
-    plt.plot(MPCsaveReward[:, 0], MPCsaveReward[:, 1], label='MPC')
-    plt.plot(ADPsaveReward[:, 0], ADPsaveReward[:, 1], label='ADP')
-    plt.legend()
-    plt.xlabel('Number of reference states')
-    plt.ylabel('Accumulated cost')
-    plt.savefig(simu_dir + '/accumulate_cost.png')
+    # y v.s. x
+    xADP = [data[:,0] for data in stateAll]
+    xRef = stateAll[0][:,6]
+    yADP = [data[:,1] for data in stateAll]
+    yRef = stateAll[0][:,7]
+    xName = 'X [m]'
+    yName = 'Y [m]'
+    title = 'Y-X'
+    comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef)
 
-    # y-x
-    for index in range(len(refNum_list)):
-        plt.figure(3)
-        # xMPC = stateMPCAll[index][(refNum_list[index]-1):-(refNum_list[-1]-refNum_list[index]), 0] - refNum_list[index] * env.refV * env.T
-        xMPC = stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0] - refNum_list[index] * env.refV * env.T
-        yMPC = stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
-        plt.plot(xMPC, yMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(4)
-        xADP = stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0] - refNum_list[index] * env.refV * env.T
-        yADP = stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
-        plt.plot(xADP, yADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(3)
-    plt.legend()
-    plt.xlabel('X [m]')
-    plt.ylabel('Y [m]')
-    plt.savefig(simu_dir + '/mpc_x-y.png')
-    plt.figure(4)
-    plt.legend()
-    plt.xlabel('X [m]')
-    plt.ylabel('Y [m]')
-    plt.savefig(simu_dir + '/adp_x-y.png')
-
-    # u-t
-    for index in range(len(refNum_list)):
-        plt.figure(5)
-        control_aMPC = controlMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]
-        plt.plot(np.arange(0, len(control_aMPC)) * env.T, control_aMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(6)
-        control_aADP = controlADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]
-        plt.plot(np.arange(0, len(control_aADP)) * env.T, control_aADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(5)
-    plt.legend()
-    plt.ylabel('a [m/s^2]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/mpc_control_a.png')
-    plt.figure(6)
-    plt.legend()
-    plt.ylabel('a [m/s^2]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/adp_control_a.png')
-    for index in range(len(refNum_list)):
-        plt.figure(7)
-        control_deltaMPC = controlMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1] * 180/np.pi
-        plt.plot(np.arange(0, len(control_deltaMPC)) * env.T, control_deltaMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(8)
-        control_deltaADP = controlADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1] * 180/np.pi
-        plt.plot(np.arange(0, len(control_deltaADP)) * env.T, control_deltaADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(7)
-    plt.legend()
-    plt.ylabel('delta [°]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/mpc_control_delta.png')
-    plt.figure(8)
-    plt.legend()
-    plt.ylabel('delta [°]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/adp_control_delta.png')
-
-    # distance error-t
-    # [x,y,phi,u,v,omega,[xr,yr,phir]]
-    for index in range(len(refNum_list)):
-        plt.figure(9)
-        distanceErrorMPC = \
-            np.cumsum(np.sqrt(np.power(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]\
-            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 6],2)\
-            +np.power(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
-            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 7],2)))
-        plt.plot(np.arange(0, len(distanceErrorMPC)) * env.T , distanceErrorMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(10)
-        distanceErrorADP = np.cumsum(np.sqrt(np.power(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 0]\
-            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 6],2)\
-            +np.power(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 1]
-            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 7],2)))
-        plt.plot(np.arange(0, len(distanceErrorADP)) * env.T , distanceErrorADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(9)
-    plt.legend()
-    plt.ylabel('Accumulated Distance Error [m]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/mpc_cumdistance_error-t.png')
-    plt.figure(10)
-    plt.legend()
-    plt.ylabel('Accumulated Distance Error [m]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/adp_cumdistance_error-t.png')
-
-    # heading error-t
-    # [x,y,phi,u,v,omega,[xr,yr,phir]]
-    for index in range(len(refNum_list)):
-        plt.figure(11)
-        headingErrorMPC = np.cumsum(np.abs(stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 2]\
-            -stateMPCAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 8]))*180/np.pi
-        plt.plot(np.arange(0, len(headingErrorMPC)) * env.T , headingErrorMPC, label = 'RefNum='+str(refNum_list[index]))
-        plt.figure(12)
-        headingErrorADP = np.cumsum(np.abs(stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 2]\
-            -stateADPAll[index][refNum_list[index]-1:-(refNum_list[-1]-refNum_list[index]+1), 8]))*180/np.pi
-        plt.plot(np.arange(0, len(headingErrorADP)) * env.T , headingErrorADP, label = 'RefNum='+str(refNum_list[index]))
-    plt.figure(11)
-    plt.legend()
-    plt.ylabel('Accumulated Heading Error [°]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/mpc_cumheading_error-t.png')
-    plt.figure(12)
-    plt.legend()
-    plt.ylabel('Accumulated Heading Error [°]')
-    plt.xlabel('Time [s]')
-    plt.savefig(simu_dir + '/adp_cumheading_error-t.png')
+    # distance error v.s. t
+    yADP = [np.sqrt(np.power(data[:, 0] - data[:, 6], 2) + np.power(data[:, 1] - data[:, 7], 2))*100 for data in stateAll]
+    xADP = [np.arange(0, len(data)) * env.T for data in yADP]
+    xName = 'Time [s]'
+    yName = 'Distance error [cm]'
+    title = 'distance-error-t'
+    comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False)\
 
 if __name__ == '__main__':
-    ADP_dir = './Results_dir/2023-01-09-19-00-08'
-    main(ADP_dir)
-
-    # parameters = {'axes.labelsize': 14,
-    #     'axes.titlesize': 14,
-    # #   'figure.figsize': (9.0, 6.5),
-    #     'xtick.labelsize': 14,
-    #     'ytick.labelsize': 14,
-    #     'axes.unicode_minus': False}
-    # plt.rcParams.update(parameters)
-    # # file_list = ['2022-11-16-15-41-50', \
-    # #     '2022-10-10-10-37-05',\
-    # #     '2022-10-10-19-49-19',\
-    # #     '2022-10-11-13-27-08',\
-    # #     '2022-10-13-00-46-36',\
-    # #     '2022-10-13-12-03-24',\
-    # #     '2022-10-14-23-12-25',\
-    # #     '2022-10-15-16-56-55',\
-    # #     '2022-11-18-11-06-35']
-    # file_list = ['2023-01-06-11-43-17',\
-    #     '2023-01-06-11-43-31',\
-    #     '2023-01-06-11-43-42',\
+    # ADP_dir_list = [\
+    #     './Results_dir/2023-02-13-16-26-22',\
+    #     './Results_dir/2023-02-13-16-29-00',\
+    #     './Results_dir/2023-02-13-16-29-28',\
+    #     './Results_dir/2023-02-13-16-29-47',\
+    #     './Results_dir/2023-02-14-12-15-23',\
     # ]
-    # ADP_list = ['./Results_dir/' + file for file in file_list]
-    # # refNum_list = [2, 3, 4, 5, 6, 7, 8, 9, 10]
-    # refNum_list = [6, 6, 6]
-    # compareHorizon(ADP_list, refNum_list)
+    # refNum_list = [1, 3, 5, 7, 9]
+    # for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
+    #     print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
+    #     main(ADP_dir, refNum)
+
+    # ADP_dir_list = [
+    #     './Results_dir/2023-02-14-12-15-23'
+    # ]
+    # refNum_list = [9]
+    # for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
+    #     print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
+    #     main(ADP_dir, refNum)
+    
+
+    parameters = {'axes.labelsize': 20,
+        'axes.titlesize': 18,
+    #   'figure.figsize': (9.0, 6.5),
+        'xtick.labelsize': 18,
+        'ytick.labelsize': 18,
+        'axes.unicode_minus': False,
+        'font.size': 12.5,
+        'figure.figsize': (9, 6.4)
+        }
+    plt.rcParams.update(parameters)
+
+    file_list = ['2023-02-13-16-26-22',\
+        '2023-02-13-16-29-28',\
+        '2023-02-14-12-15-23'
+    ]
+    ADP_list = ['./Results_dir/' + file for file in file_list]
+    refNum_list = [1, 5, 9]
+
+    compareHorizon(ADP_list, refNum_list, curveType = 'sine')
+    compareHorizon(ADP_list, refNum_list, curveType = 'DLC')
+    compareHorizon(ADP_list, refNum_list, curveType = 'Circle')

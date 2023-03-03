@@ -47,16 +47,17 @@ class vehicleDynamic():
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
-        self.testStepReal = {'sine': 200, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500}
+        self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 200}
+        # self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 400}
         self.testStepVirtual = 40
         # TODO: to 100
-        self.testSampleNum = 10
-        self.refNum = 9
+        self.testSampleNum = 1
+        self.refNum = 1
         self.mpcstep = 60
 
 class MPCConfig():
     def __init__(self):
-        self.MPCStep = [10, 30, 60]
+        self.MPCStep = [9]
         config = trainConfig()
         self.gammar = config.gammar
 

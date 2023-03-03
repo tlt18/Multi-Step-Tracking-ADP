@@ -505,10 +505,19 @@ class TrackingEnv(gym.Env):
         return newState, reward, done, nextInfo
 
 
-    def resetSpecific(self, stateNum, noise = 1, MPCflag = 0):
-        reft = torch.rand(stateNum) * 12 * np.pi /5
-        reft = torch.rand(stateNum) * 12 * np.pi /5 * 0
-        refID = torch.zeros(stateNum)
+    def resetSpecific(self, stateNum, noise = 1, MPCflag = 0, refIDinit = None):
+        if refIDinit != None:
+            refID = torch.ones(stateNum) * refIDinit
+        elif refIDinit == None:
+            refID = torch.floor(torch.rand(stateNum) * 3)
+            refID[refID==2] = torch.zeros(sum(refID==2))
+        reft = torch.zeros(stateNum)
+        reft[refID==0] = torch.rand(sum(refID==0)) * 12 * np.pi /5
+        reft[refID==1] = torch.rand(sum(refID==1)) * 28
+        if noise == -1:
+            reft = reft * 0
+            noise = 0
+
         info = torch.stack((reft, refID), dim = -1)
         # \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
@@ -535,7 +544,7 @@ class TrackingEnv(gym.Env):
         
 class MultiRefDynamics():
     def __init__(self) -> None:
-        self.refTrajectory = [sineCurve(1, 1/6)]
+        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(30)]
 
     def calx(self, t, refID, MPCflag = 0):
         if MPCflag == 0:
@@ -581,6 +590,80 @@ class sineCurve():
     def calphi(self, t: torch.Tensor) -> torch.Tensor:
         return torch.atan(self.A * self.K * torch.cos(self.K * self.refV * t))
 
+class DLC():
+    def __init__(self, DLCa = 30.01, DLCb = 50, DLCh = 3.5) -> None:
+        self.DLCa = DLCa
+        self.DLCb = DLCb
+        self.DLCh = DLCh
+        self.refV = 5
+    
+    def calx(self, t: torch.Tensor) -> torch.Tensor:
+        # fixed speed
+        return self.refV * t
+
+    def caly(self, t: torch.Tensor) -> torch.Tensor:
+        x = self.refV * t
+        refy = torch.empty_like(x)
+        temp = (x < self.DLCa)
+        refy[temp] = 0
+        temp = (x > self.DLCa) & (x < 2 * self.DLCa)
+        refy[temp] = self.DLCh / self.DLCa * (x[temp] - self.DLCa)
+        temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+        refy[temp] = self.DLCh
+        temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
+        refy[temp] = - self.DLCh / self.DLCa * (x[temp] - 3 * self.DLCa - self.DLCb)
+        temp = (x > 3 * self.DLCa + self.DLCb)
+        refy[temp] = 0
+        return refy
+
+    def calphi(self, t: torch.Tensor) -> torch.Tensor:
+        x = self.refV * t
+        refphi = torch.empty_like(x)
+        temp = (x < self.DLCa)
+        refphi[temp] = 0
+        temp = (x > self.DLCa) & (x < 2 * self.DLCa)
+        refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCa))
+        temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+        refphi[temp] = 0
+        temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
+        refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCa))
+        temp = (x > 3 * self.DLCa + self.DLCb)
+        refphi[temp] = 0
+        return refphi
+
+class Circle():
+    def __init__(self, R = 30) -> None:
+        # y_r = A * sin(K * x_r)
+        self.R = R
+        self.refV = 5
+    
+    def calx(self, t: torch.Tensor) -> torch.Tensor:
+        return self.R * torch.cos(self.refV * t / self.R)
+
+    def caly(self, t: torch.Tensor) -> torch.Tensor:
+        return self.R * torch.sin(self.refV * t / self.R)
+
+    def calphi(self, t: torch.Tensor) -> torch.Tensor:
+        return self.refV * t / self.R + np.pi/2
+
+# refy = torch.empty_like(x)
+# refphi = torch.empty_like(x)
+# temp = (x < self.DLCa)
+# refy[temp] = 0
+# refphi[temp] = 0
+# temp = (x > self.DLCa) & (x < 2 * self.DLCa)
+# refy[temp] = self.DLCh / self.DLCa * (x[temp] - self.DLCa)
+# refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCa))
+# temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+# refy[temp] = self.DLCh
+# refphi[temp] = 0
+# temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
+# refy[temp] = - self.DLCh / self.DLCa * (x[temp] - 3 * self.DLCa - self.DLCb)
+# refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCa))
+# temp = (x > 3 * self.DLCa + self.DLCb)
+# refy[temp] = 0
+# refphi[temp] = 0
+# return refy, refphi
 
 if __name__ == '__main__':
     # ADP_dir = './Results_dir/2022-04-09-10-12-16'
