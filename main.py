@@ -6,7 +6,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import torch
 
-from config import trainConfig
+from config import trainConfig, vehicleDynamicConfig
 from myenv import TrackingEnv
 from network import Actor, Critic
 from train import Train
@@ -22,7 +22,7 @@ isSimu = True
 # parameters setting
 config = trainConfig()
 env = TrackingEnv()
-env.seed(30)
+env.seed(60)
 
 use_gpu = torch.cuda.is_available()
 relstateDim = env.relstateDim
@@ -36,7 +36,9 @@ value = Critic(relstateDim, 1, lr=config.lrValue)
 # ADP_dir = './Results_dir/2022-03-29-10-19-28'
 # policy.loadParameters(ADP_dir)
 # value.loadParameters(ADP_dir)
-log_dir = "./Results_dir/" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+refNum = env.refNum
+log_dir = "./Results_dir/refNum"+str(refNum)+'/'+ datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(log_dir + '/train', exist_ok=True)
 os.makedirs(log_dir + '/code', exist_ok=True)
@@ -70,10 +72,9 @@ if isTrain:
         # store loss
         dataWriter.add_scalar('Policy Loss', train.lossIteraPolicy.mean(), iterarion)
         dataWriter.add_scalar('Value Loss', train.lossIteraValue.mean(), iterarion)
-        if iterarion % config.iterationPrint == 0:
+        if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
             print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:10f}, policy lr: {:10f}".format(
                 iterarion, train.lossIteraValue, train.lossIteraPolicy, value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
-        if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
             # save parameters
             value.saveParameters(log_dir)
             policy.saveParameters(log_dir)
@@ -100,4 +101,4 @@ if isTrain:
         iterarion += 1
 
 if isSimu: 
-    simulation.main(log_dir)
+    simulation.main(log_dir, refNum)

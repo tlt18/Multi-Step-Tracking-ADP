@@ -23,7 +23,7 @@ class trainConfig():
         self.tanLine = False
 
 
-class vehicleDynamic():
+class vehicleDynamicConfig():
     def __init__(self):
         self.refV = 5
         # y_r = curveA * sin(curveK * x_r)
@@ -47,12 +47,12 @@ class vehicleDynamic():
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]
-        self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 200}
-        # self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 400}
+        # self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 200}
+        self.testStepReal = {'sine': 100, 'DLC': 350, 'TurnLeft': 30, 'TurnRight': 30, 'RandomTest': 500, 'Circle': 400}
         self.testStepVirtual = 40
         # TODO: to 100
         self.testSampleNum = 1
-        self.refNum = 1
+        self.refNum = 19
         self.mpcstep = 60
 
 class MPCConfig():

@@ -6,88 +6,99 @@ import pandas as pd
 
 dir_list = {\
     1: [
-        'Results_dir/2023-02-13-16-26-22/train/events.out.tfevents.1676276782.idlab-Server2.18816.0',
-        'Results_dir/2023-02-14-10-40-57/train/events.out.tfevents.1676342457.idlab-Server2.553.0',
-        'Results_dir/2023-02-15-10-19-07/train/events.out.tfevents.1676427547.idlab-Server2.14314.0',
-        'Results_dir/2023-02-15-20-05-50/train/events.out.tfevents.1676462750.idlab-Server2.7416.0',
-        'Results_dir/2023-02-16-09-09-52/train/events.out.tfevents.1676509792.idlab-Server2.16161.0'
+        'Results_dir/refNum1/2023-03-06-09-52-34/train/events.out.tfevents.1678067554.idlab-Server2.24022.0',
+        'Results_dir/refNum1/2023-03-07-15-21-50/train/events.out.tfevents.1678173710.idlab-Server2.32234.0',
+        'Results_dir/refNum1/2023-03-08-14-12-40/train/events.out.tfevents.1678255960.idlab-Server2.24758.0',
+        'Results_dir/refNum1/2023-03-13-11-28-07/train/events.out.tfevents.1678678087.idlab-Server2.773.0',
+        'Results_dir/refNum1/2023-03-15-16-24-56/train/events.out.tfevents.1678868696.idlab-Server2.30290.0'
         ],
     3: [
-        'Results_dir/2023-02-13-16-29-00/train/events.out.tfevents.1676276940.idlab-Server2.19127.0',
-        'Results_dir/2023-02-14-10-41-07/train/events.out.tfevents.1676342467.idlab-Server2.670.0',
-        'Results_dir/2023-02-15-10-19-27/train/events.out.tfevents.1676427567.idlab-Server2.14435.0',
-        'Results_dir/2023-02-15-20-05-58/train/events.out.tfevents.1676462758.idlab-Server2.7532.0',
-        'Results_dir/2023-02-16-09-10-04/train/events.out.tfevents.1676509804.idlab-Server2.16278.0'
+        'Results_dir/refNum3/2023-03-07-15-22-02/train/events.out.tfevents.1678173722.idlab-Server2.32336.0',
+        'Results_dir/refNum3/2023-03-07-15-22-41/train/events.out.tfevents.1678173761.idlab-Server2.32717.0',
+        'Results_dir/refNum3/2023-03-08-14-12-48/train/events.out.tfevents.1678255968.idlab-Server2.24855.0',
+        'Results_dir/refNum3/2023-03-10-09-52-50/train/events.out.tfevents.1678413170.idlab-Server2.12031.0',
+        'Results_dir/refNum3/2023-03-11-13-43-42/train/events.out.tfevents.1678513422.idlab-Server2.19338.0'
         ],
     5: [
-        'Results_dir/2023-02-13-16-29-28/train/events.out.tfevents.1676276968.idlab-Server2.19344.0',
-        'Results_dir/2023-02-14-10-41-17/train/events.out.tfevents.1676342477.idlab-Server2.789.0',
-        'Results_dir/2023-02-15-10-19-35/train/events.out.tfevents.1676427575.idlab-Server2.14549.0',
-        'Results_dir/2023-02-15-20-06-06/train/events.out.tfevents.1676462766.idlab-Server2.7685.0',
-        'Results_dir/2023-02-16-09-10-14/train/events.out.tfevents.1676509814.idlab-Server2.16371.0'
+        'Results_dir/refNum5/2023-03-06-09-52-53/train/events.out.tfevents.1678067573.idlab-Server2.24231.0',
+        'Results_dir/refNum5/2023-03-07-15-22-10/train/events.out.tfevents.1678173730.idlab-Server2.32429.0',
+        'Results_dir/refNum5/2023-03-08-14-12-53/train/events.out.tfevents.1678255973.idlab-Server2.24948.0',
+        'Results_dir/refNum5/2023-03-10-09-53-06/train/events.out.tfevents.1678413186.idlab-Server2.12510.0',
+        'Results_dir/refNum5/2023-03-11-13-43-48/train/events.out.tfevents.1678513428.idlab-Server2.19423.0'
         ],
     7: [
-        'Results_dir/2023-02-13-16-29-47/train/events.out.tfevents.1676276987.idlab-Server2.19579.0',
-        'Results_dir/2023-02-14-10-41-32/train/events.out.tfevents.1676342492.idlab-Server2.871.0',
-        'Results_dir/2023-02-15-10-19-51/train/events.out.tfevents.1676427591.idlab-Server2.14678.0',
-        'Results_dir/2023-02-15-20-06-15/train/events.out.tfevents.1676462775.idlab-Server2.7908.0',
-        'Results_dir/2023-02-16-09-10-26/train/events.out.tfevents.1676509826.idlab-Server2.16477.0'
+        'Results_dir/refNum7/2023-03-06-09-53-00/train/events.out.tfevents.1678067580.idlab-Server2.24328.0',
+        'Results_dir/refNum7/2023-03-07-15-22-18/train/events.out.tfevents.1678173738.idlab-Server2.32525.0',
+        'Results_dir/refNum7/2023-03-08-14-12-59/train/events.out.tfevents.1678255979.idlab-Server2.25047.0',
+        'Results_dir/refNum7/2023-03-10-09-53-13/train/events.out.tfevents.1678413193.idlab-Server2.12605.0',
+        'Results_dir/refNum7/2023-03-11-13-43-52/train/events.out.tfevents.1678513432.idlab-Server2.19519.0'
         ],
     9: [
-        'Results_dir/2023-02-14-12-15-23/train/events.out.tfevents.1676348123.idlab-Server2.20782.0',
-        'Results_dir/2023-02-14-10-41-41/train/events.out.tfevents.1676342501.idlab-Server2.1007.0',
-        'Results_dir/2023-02-15-10-19-59/train/events.out.tfevents.1676427599.idlab-Server2.14780.0',
-        'Results_dir/2023-02-15-20-06-22/train/events.out.tfevents.1676462782.idlab-Server2.8025.0',
-        'Results_dir/2023-02-16-09-10-36/train/events.out.tfevents.1676509836.idlab-Server2.16593.0'
+        'Results_dir/refNum9/2023-03-06-09-53-05/train/events.out.tfevents.1678067585.idlab-Server2.24428.0',
+        'Results_dir/refNum9/2023-03-07-15-22-27/train/events.out.tfevents.1678173747.idlab-Server2.32618.0',
+        'Results_dir/refNum9/2023-03-08-14-13-05/train/events.out.tfevents.1678255985.idlab-Server2.25143.0',
+        'Results_dir/refNum9/2023-03-10-09-53-21/train/events.out.tfevents.1678413201.idlab-Server2.12688.0',
+        'Results_dir/refNum9/2023-03-11-13-43-59/train/events.out.tfevents.1678513439.idlab-Server2.19618.0'
     ]
 }
 
+
 # refNum_list = [1]
 refNum_list = [1, 3, 5, 7, 9]
+max_iteration = 30001
 
-for refNum in refNum_list:
-    print('Plot case of refNum = {}'.format(refNum))
-    dirs = dir_list[refNum]
-    step_list = []
-    value_list = []
-    for dir in dirs:
-        ea=event_accumulator.EventAccumulator(dir)
-        ea.Reload()
-        # print(ea.scalars.Keys())
-        # ['Policy Loss', 'Value Loss', 'Virtual cost', 'Acc max error', 'Delta max error']
-        data_item = ea.scalars.Items('Virtual cost')
-        step_list += [i.step/1000 for i in data_item]
-        temp_value = data_item[0].value 
-        value_filter = []
-        w = 0.0
-        for i in data_item:
-            temp_value = temp_value * w + i.value * (1-w)
-            value_filter.append(temp_value)
-        value_list += value_filter
-    value_list = [v * 100 for v in value_list] # step
-    data = pd.DataFrame.from_dict(
-        {
-            "step": step_list,
-            "reward": value_list
-        }
-    )
+def myPolt(type = 'DLC cost', ylimit = [0.1, 4]):
+    for refNum in refNum_list:
+        print('Plot case of refNum = {}'.format(refNum))
+        dirs = dir_list[refNum]
+        step_list = []
+        value_list = []
+        for dir in dirs:
+            ea=event_accumulator.EventAccumulator(dir)
+            ea.Reload()
+            # print(ea.scalars.Keys())
+            data_item = ea.scalars.Items(type)
+            step_add = [i.step/1000 for i in data_item if i.step < max_iteration]
+            step_list += step_add
+            temp_value = data_item[0].value 
+            value_filter = []
+            w = 0.0
+            for i in data_item:
+                temp_value = temp_value * w + i.value * (1-w)
+                value_filter.append(temp_value)
+            value_filter = value_filter[:len(step_add)]
+            value_list += value_filter
+        value_list = [v * 100 for v in value_list] # step
+
+        data = pd.DataFrame.from_dict(
+            {
+                "step": step_list,
+                "reward": value_list
+            }
+        )
+        sns.set_style("darkgrid")
+        sns.lineplot(data=data, x="step", y="reward", label = 'ADP(N='+str(refNum)+')')
+        # plt.plot(data[:, 0]/1000, data[:, 1], label = 'ADP(N='+str(refNum)+')')
+    plt.legend()
+    # plt.ylim(1.25, 4)
+    plt.ylim(ylimit)
+    # plt.yscale('log')
+    plt.xlabel('Thousand Iteration')
+    plt.ylabel(type)
+    plt.savefig('./Results_dir/learning_curve/'+type+'.png', bbox_inches='tight')
+
+
+if __name__ == '__main__':
     parameters = {
         'axes.labelsize': 12,
         'axes.titlesize': 12,
-        # 'figure.figsize': (9.0, 6.5),
+        'figure.figsize': (6, 4),
         'xtick.labelsize': 12,
         'ytick.labelsize': 12,
         'axes.unicode_minus': False}
     plt.rcParams.update(parameters)
-    sns.set_style("darkgrid")
-    plt.figure(0)
-    sns.lineplot(data=data, x="step", y="reward", label = 'ADP(N='+str(refNum)+')')
-    # plt.plot(data[:, 0]/1000, data[:, 1], label = 'ADP(N='+str(refNum)+')')
-    plt.legend()
-    plt.ylim(1.25, 4)
-    # plt.yscale('log')
-    plt.xlabel('Thousand Iteration')
-    plt.ylabel('Cumulative cost')
-    plt.savefig('./Results_dir/learning_curve/cumulative cost.png', bbox_inches='tight')
 
-   
+    plt.figure(0)
+    myPolt('DLC cost', ylimit = [0.1, 4])
+    plt.figure(1)
+    myPolt('Sine cost', ylimit = [1.25, 4])

@@ -13,13 +13,13 @@ from gym.utils import seeding
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import MultipleLocator
 
-from config import vehicleDynamic
+from config import vehicleDynamicConfig
 from network import Actor, Critic
 
 class TrackingEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        config = vehicleDynamic()
+        config = vehicleDynamicConfig()
         # reference velocity
         self.refV = config.refV
         self.curveK = config.curveK

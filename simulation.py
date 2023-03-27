@@ -627,11 +627,11 @@ def comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef
         plt.plot(xRef, yRef, linewidth = 2, color = 'black', label = 'ref')
     for i in range(len(xADP)):
         plt.plot(xADP[i], yADP[i], linewidth = 2, label = 'ADP(N=' + str(refNum_list[i]) + ')')
-    plt.legend()
+    plt.legend(loc = 'lower right')
     plt.xlabel(xName)
     plt.ylabel(yName)
     # plt.savefig(simu_dir + '/' + title + '.png', bbox_inches='tight')
-    plt.savefig(simu_dir + '/' + title + '.png')
+    plt.savefig(simu_dir + '/' + title + '.png', bbox_inches = 'tight')
     plt.close()
 
 def animationPlot(state, refstate, xName, yName):
@@ -720,9 +720,9 @@ def main(ADP_dir, RefNum):
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'DLC')
 
-    simu_dir = ADP_dir + '/simulationReal/Circle'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'Circle')
+    # simu_dir = ADP_dir + '/simulationReal/Circle'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'Circle')
 
 def compareHorizon(ADP_list, refNum_list, curveType = 'sine', seed = 0):
     simu_dir = "./Simulation_dir/compareHorizon" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -798,48 +798,54 @@ def compareHorizon(ADP_list, refNum_list, curveType = 'sine', seed = 0):
     xName = 'Time [s]'
     yName = 'Distance error [cm]'
     title = 'distance-error-t'
-    comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False)\
+    comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False)
+
+    # rewardADP v.s. t
+    yADP = rewardAll
+    yADP = [np.cumsum(reward_) for reward_ in rewardAll]
+    xADP = [np.arange(0, len(data)) * env.T for data in yADP]
+    xName = 'Time [s]'
+    yName = 'Cost'
+    title = 'cost-t'
+    comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False)
 
 if __name__ == '__main__':
     # ADP_dir_list = [\
-    #     './Results_dir/2023-02-13-16-26-22',\
-    #     './Results_dir/2023-02-13-16-29-00',\
-    #     './Results_dir/2023-02-13-16-29-28',\
-    #     './Results_dir/2023-02-13-16-29-47',\
-    #     './Results_dir/2023-02-14-12-15-23',\
+    #     './Results_dir/refNum1/2023-03-06-09-52-34',\
+    #     './Results_dir/refNum3/2023-03-07-15-22-02',\
+    #     './Results_dir/refNum5/2023-03-06-09-52-53',\
+    #     './Results_dir/refNum7/2023-03-06-09-53-00',\
+    #     './Results_dir/refNum9/2023-03-06-09-53-05',\
     # ]
     # refNum_list = [1, 3, 5, 7, 9]
     # for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
     #     print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
     #     main(ADP_dir, refNum)
 
-    # ADP_dir_list = [
-    #     './Results_dir/2023-02-14-12-15-23'
-    # ]
-    # refNum_list = [9]
-    # for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
-    #     print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
-    #     main(ADP_dir, refNum)
+    ADP_dir_list = [\
+        './Results_dir/refNum9/2023-03-06-09-53-05'\
+    ]
+    refNum_list = [9]
+    for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
+        print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
+        main(ADP_dir, refNum)
     
 
-    parameters = {'axes.labelsize': 20,
-        'axes.titlesize': 18,
-    #   'figure.figsize': (9.0, 6.5),
-        'xtick.labelsize': 18,
-        'ytick.labelsize': 18,
-        'axes.unicode_minus': False,
-        'font.size': 12.5,
-        'figure.figsize': (9, 6.4)
-        }
-    plt.rcParams.update(parameters)
+    # parameters = {'axes.labelsize': 20,
+    #     'axes.titlesize': 20,
+    #     'xtick.labelsize': 18,
+    #     'ytick.labelsize': 18,
+    #     'axes.unicode_minus': False,
+    #     'font.size': 18,
+    #     'figure.figsize': (10, 3)
+    #     }
+    # plt.rcParams.update(parameters)
 
-    file_list = ['2023-02-13-16-26-22',\
-        '2023-02-13-16-29-28',\
-        '2023-02-14-12-15-23'
-    ]
-    ADP_list = ['./Results_dir/' + file for file in file_list]
-    refNum_list = [1, 5, 9]
-
-    compareHorizon(ADP_list, refNum_list, curveType = 'sine')
-    compareHorizon(ADP_list, refNum_list, curveType = 'DLC')
-    compareHorizon(ADP_list, refNum_list, curveType = 'Circle')
+    # ADP_list = ['./Results_dir/refNum1/2023-03-06-09-52-34',\
+    #     './Results_dir/refNum5/2023-03-06-09-52-53',\
+    #     './Results_dir/refNum9/2023-03-06-09-53-05'
+    # ]
+    # refNum_list = [1, 5, 9]
+    # compareHorizon(ADP_list, refNum_list, curveType = 'sine')
+    # compareHorizon(ADP_list, refNum_list, curveType = 'DLC')
+    # compareHorizon(ADP_list, refNum_list, curveType = 'Circle')
