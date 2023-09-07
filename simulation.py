@@ -823,9 +823,9 @@ if __name__ == '__main__':
     #     main(ADP_dir, refNum)
 
     ADP_dir_list = [\
-        './Results_dir/refNum9/2023-03-06-09-53-05'\
+        './Results_dir/refNum19/2023-03-23-11-55-35'\
     ]
-    refNum_list = [9]
+    refNum_list = [19]
     for ADP_dir, refNum in zip(ADP_dir_list, refNum_list):
         print('-' * 30 + 'refNum=' + str(refNum) + '-'*30)
         main(ADP_dir, refNum)

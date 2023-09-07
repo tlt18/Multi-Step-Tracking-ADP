@@ -64,6 +64,16 @@ class Actor(nn.Module):
                 # module.bias.data = torch.zeros_like(module.bias)
 
 
+class ActorForIDC(Actor):
+    def forward(self, x):
+        x = self.preprocess(x)
+        x = super().forward(x)
+        return x
+    
+    def preprocess(self, obs):
+        # TODO: add preprocess
+        return obs
+
 class Critic(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()

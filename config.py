@@ -52,12 +52,12 @@ class vehicleDynamicConfig():
         self.testStepVirtual = 40
         # TODO: to 100
         self.testSampleNum = 1
-        self.refNum = 19
+        self.refNum = 21
         self.mpcstep = 60
 
 class MPCConfig():
     def __init__(self):
-        self.MPCStep = [9]
+        self.MPCStep = [20]
         config = trainConfig()
         self.gammar = config.gammar
 

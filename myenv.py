@@ -86,8 +86,8 @@ class TrackingEnv(gym.Env):
     def resetRandom(self, stateNum, noise = 1, MPCflag = 0):
         # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
-        # u: [4*self.refV/5, 6*self.refV/5]
-        newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 5 * noise
+        # u: [0, 2 * self.refV]
+        newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV * noise
         # v: [-self.refV/5, self.refV/5]
         newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * self.refV / 5 * noise
         # omega: [-1, 1]
