@@ -1,0 +1,13 @@
+name: Tracking
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - matplotlib
+  - torch
+  - casadi
+  - seaborn
+  - tensorboard
+  - onnx
+  - gym

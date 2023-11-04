@@ -3,12 +3,12 @@ import torch
 import numpy as np
 from torch.nn import init
 import os
-PI = 3.1415926
+from config import vehicleDynamicConfig
 
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.tensor([2, 0.3])
+        self._out_gain = torch.FloatTensor([2.0, 0.1])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
@@ -35,8 +35,8 @@ class Actor(nn.Module):
         self._initializeWeights()
 
     def forward(self, x):
-        temp = torch.mul(x, self._norm_matrix)
-        x = torch.mul(self._out_gain, self.layers(temp))
+        temp = x * self._norm_matrix
+        x = self._out_gain * self.layers(temp)
         return x
 
     def predict(self, x):
@@ -65,14 +65,35 @@ class Actor(nn.Module):
 
 
 class ActorForIDC(Actor):
+    def __init__(self, inputSize, outputSize, lr=0.001):
+        super().__init__(inputSize, outputSize, lr)
+        config = vehicleDynamicConfig()
+        self.refNum = config.refNum
+        self.inputSize = inputSize 
+
     def forward(self, x):
         x = self.preprocess(x)
+        # x for NN: [u, v, w, [delta_x, delta_y, delta_phi] * N]
         x = super().forward(x)
-        return x
+        x = x/self._out_gain
+        result = torch.zeros_like(x)
+        result[:, 0] = x[:, 1]
+        result[:, 1] = x[:, 0]
+        return result
     
     def preprocess(self, obs):
-        # TODO: add preprocess
-        return obs
+        x = torch.zeros([1, self.inputSize])
+        x[:, :3] = obs[:, :3]
+        obs_ego = torch.concat([obs[:, 3:6], torch.zeros(1, 1)], dim = 1) 
+        tempState = obs[:, 10: 10+4*self.refNum] - obs_ego.repeat(1, self.refNum)
+        for i in range(self.refNum):
+            relIndex = 4 * i + 3
+            tempIndex = 4 * i
+            x[:, relIndex] = tempState[:, tempIndex] * torch.cos(obs[:, 5]*np.pi/180) + tempState[:, tempIndex+1] * torch.sin(obs[:, 5]*np.pi/180)
+            x[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(obs[:, 5]*np.pi/180)) + tempState[:, tempIndex+1] *  torch.cos(obs[:, 5]*np.pi/180)
+            x[:, relIndex + 2] =  (tempState[:, tempIndex + 2]*np.pi/180)
+            x[:, relIndex + 3] = torch.sin(tempState[:, tempIndex + 2]*np.pi/180)
+        return x
 
 class Critic(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):

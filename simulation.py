@@ -697,7 +697,7 @@ def simuVirtualTraning(env, ADP_dir, noise = -1, refIDinit = 0):
 
     return rewardList.mean()
 
-def main(ADP_dir, RefNum):
+def main(ADP_dir, refNum):
     config = MPCConfig()
     MPCStep = config.MPCStep
 

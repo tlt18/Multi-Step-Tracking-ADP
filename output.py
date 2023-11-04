@@ -1,42 +1,55 @@
 from myenv import TrackingEnv
-from network import Actor, Critic
+from network import Actor, Critic, ActorForIDC
 import torch.onnx
 import onnx
+import onnxruntime as ort
+import numpy as np
 
-ADP_dir = './Results_dir/2022-05-26-15-15-14'
+ADP_dir = './Results_dir/refNum21/2023-11-02-16-10-21'
 env = TrackingEnv()
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
-policy = Actor(relstateDim, actionDim)
+policy = ActorForIDC(relstateDim, actionDim)
 policy.loadParameters(ADP_dir)
 
 
-# stateAdp = env.resetRandom(1, noise = 1, MPCtest = True) # [v,omega,x,y,phi,xr,yr,phir]
-# relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]
+stateAdp = env.resetRandom(1, noise = 1, MPCflag = 0) # [v,omega,x,y,phi,xr,yr,phir]
+relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]
+
+# stateForIDC = torch.zeros([1, 122])
+stateForIDC = torch.rand([1, 122])
 # .onnx
-# Model_save = ADP_dir + '/policy_model.onnx'
-# torch_out = policy(relState)
-# # Export the model
-# torch.onnx.export(policy,               # model being run
-#                   relState,                         # model input (or a tuple for multiple inputs)
-#                   Model_save,   # where to save the model (can be a file or file-like object)
-#                   export_params=True,        # store the trained parameter weights inside the model file
-#                   opset_version=10,          # the ONNX version to export the model to
-#                   do_constant_folding=True,  # whether to execute constant folding for optimization
-#                   input_names = ['input'],   # the model's input names
-#                   output_names = ['output'], # the model's output names
-#                   dynamic_axes={'input' : {0 : 'batch_size'},    # variable lenght axes
-#                                 'output' : {0 : 'batch_size'}})
-# onnx_model = onnx.load(Model_save)
-# onnx.checker.check_model(onnx_model)
+Model_save = ADP_dir + '/tlt_policy.onnx'
+torch_out = policy(stateForIDC)
+# Export the model
+torch.onnx.export(policy,               # model being run
+                  stateForIDC,                         # model input (or a tuple for multiple inputs)
+                  Model_save,   # where to save the model (can be a file or file-like object)
+                  input_names = ['input'],
+                  output_names = ['output'], # the model's output names
+                  opset_version=11,          # the ONNX version to export the model to
+                )
+
+# check onnx model with ONNX API
+onnx_model = onnx.load(Model_save)
+onnx.checker.check_model(onnx_model)
 # print(onnx.helper.printable_graph(onnx_model.graph)) # 打印计算图
 
+# compute output
+ort_session = ort.InferenceSession(Model_save)
+ort_inputs = {ort_session.get_inputs()[0].name: stateForIDC.numpy()}
+ort_outs = ort_session.run(None, ort_inputs)
+
+print("torch_out: {}".format(torch_out.detach().numpy()))
+print("ort_outs: {}".format(ort_outs[0]))
+
+np.testing.assert_allclose(torch_out.detach().numpy(), ort_outs[0], rtol=1e-03, atol=1e-05)
 
 # .pt
-Model_save = ADP_dir + '/policy_model.pt'
-stateAdp = env.resetRandom(1, noise = 1, MPCtest = True) # [v,omega,x,y,phi,xr,yr,phir]
-relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]
-torch.jit.trace(policy, relState).save(Model_save)
+# Model_save = ADP_dir + '/policy_model.pt'
+# stateAdp = env.resetRandom(1, noise = 1, MPCtest = True) # [v,omega,x,y,phi,xr,yr,phir]
+# relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]
+# torch.jit.trace(policy, relState).save(Model_save)
 
 
 # compare

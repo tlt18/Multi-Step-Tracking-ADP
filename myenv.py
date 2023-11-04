@@ -82,7 +82,6 @@ class TrackingEnv(gym.Env):
         np.random.seed(s)
         torch.manual_seed(s)
 
-
     def resetRandom(self, stateNum, noise = 1, MPCflag = 0):
         # augmented state space \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
         newState = torch.empty([stateNum, self.stateDim])
@@ -102,7 +101,6 @@ class TrackingEnv(gym.Env):
         else:
             return newState[0].tolist()
          
-
     def referenceFind(self, state, noise = 0, MPCflag = 0):
         # input: state = [x, y, phi]
         # output: N steps reference point
@@ -127,7 +125,6 @@ class TrackingEnv(gym.Env):
         else:
             return self.referenceFind(torch.tensor([state]), noise=noise, MPCflag=0)[0].tolist()
         return refState
-
 
     def resetSpecificCurve(self, stateNum, curveType = 'sine'):
         # \bar x = [u, v, omega, [xr, yr, phir], x, y, phi]
@@ -186,7 +183,6 @@ class TrackingEnv(gym.Env):
         done = self.isDone(newState, control)
         return newState, reward, done
 
-
     def stepVirtual(self, state, control, noise = 0):
         newState = torch.empty_like(state)
         temp = \
@@ -199,7 +195,6 @@ class TrackingEnv(gym.Env):
         done = self.isDone(newState, control)
         return newState, reward, done
 
-
     def calReward(self, state, control, MPCflag = 0):
         # TODO: design reward
         if MPCflag == 0 :
@@ -208,25 +203,18 @@ class TrackingEnv(gym.Env):
                 15 * torch.pow(state[:, -2] - state[:, 4], 2) +\
                 10 * torch.pow(state[:, -1] - state[:, 5], 2) +\
                 2 * torch.pow(control[:, 0], 2) +\
-                2 * torch.pow(control[:, 1], 2)
+                20 * torch.pow(control[:, 1], 2)
         else:
             reward = \
                 15 * pow(state[-3] - state[3], 2) +\
                 15 * pow(state[-2] - state[4], 2) +\
                 10 * pow(state[-1] - state[5], 2) +\
                 2 * pow(control[0], 2) +\
-                2 * pow(control[1], 2)
+                20 * pow(control[1], 2)
         return reward
 
-
     def isDone(self, state, control):
-        # TODO: design condition of done
-        batchSize = state.size(0)
-        done = torch.tensor([False for i in range(batchSize)])
-        done[(torch.pow(state[:, -3]-state[:, 3], 2) + torch.pow(state[:, -2]-state[:, 4], 2) > 4)] = True
-        done[(torch.abs(state[:, -1] - state[:, 5]) > np.pi/6)] = True
-        return done
-
+        return (torch.pow(state[:, -3]-state[:, 3], 2) + torch.pow(state[:, -2]-state[:, 4], 2) > 4) | (torch.abs(state[:, -1] - state[:, 5]) > np.pi/6)
 
     def vehicleDynamic(self, x_0, y_0, phi_0, u_0, v_0, omega_0, acc, delta, MPCflag = 0):
         if MPCflag == 0:
@@ -253,7 +241,6 @@ class TrackingEnv(gym.Env):
                 / ((self.a * self.a * self.kf + self.b * self.b * self.kr) - self.Iz * u_0 / self.T)
         return [x_1, y_1, phi_1, u_1, v_1, omega_1]
 
-
     def checkRandomTrain(self, batchSize):
         if self.randomLTrain == None or batchSize != self.randomLTrain.size(0):
             self.randomLTrain = 2 * (torch.rand(batchSize) - 1/2)
@@ -263,7 +250,6 @@ class TrackingEnv(gym.Env):
             self.randomLTrain.clip(min = -1, max = 1)
             self.randomPhiTrain.clip(min = -1, max = 1)
             self.randomHeadTrain.clip(min = -1, max = 1)
-
 
     def refDynamicVirtual(self, refState, MPCflag = 0, noise = 0):
         # Input: N steps ref point
@@ -289,7 +275,6 @@ class TrackingEnv(gym.Env):
         else:
             return self.refDynamicVirtual(torch.tensor([refState]), MPCflag = 0, noise = noise)[0].tolist()
         return newRefState
-
 
     def refDynamicReal(self, refState, MPCflag = 0, curveType = 'sine'):
         maxSection = 5
@@ -327,7 +312,6 @@ class TrackingEnv(gym.Env):
             return self.refDynamicReal(torch.tensor([refState]), MPCflag = 0, curveType = curveType)[0].tolist()
         return newRefState
         
-
     def referenceCurve(self, x, MPCflag = 0,  curveType = 'sine'):
         if MPCflag == 0:
             if curveType == 'sine':
@@ -362,7 +346,6 @@ class TrackingEnv(gym.Env):
             refy, refphi = self.refDynamicReal(torch.tensor([x]), MPCflag = 0, curveType = curveType)
             return refy[0].tolist(), refphi[0].tolist()
 
-
     def relStateCal(self, state):
         # state = [u, v, omega, [xr, yr, phir], x, y, phi]
         batchSize = state.size(0)
@@ -377,7 +360,6 @@ class TrackingEnv(gym.Env):
             relState[:, relIndex + 2] = torch.cos(tempState[:, tempIndex + 2])
             relState[:, relIndex + 3] = torch.sin(tempState[:, tempIndex + 2])
         return relState
-
 
     def policyTestReal(self, policy, iteration, log_dir, curveType = 'sine'):
         state  = self.resetSpecificCurve(1, curveType = curveType)
@@ -504,7 +486,6 @@ class TrackingEnv(gym.Env):
         done = self.isDone(newState, control)
         return newState, reward, done, nextInfo
 
-
     def resetSpecific(self, stateNum, noise = 1, MPCflag = 0, refIDinit = None):
         if refIDinit != None:
             refID = torch.ones(stateNum) * refIDinit
@@ -541,10 +522,9 @@ class TrackingEnv(gym.Env):
         else:
             return newState[0].tolist(), info[0].tolist()
 
-        
 class MultiRefDynamics():
     def __init__(self) -> None:
-        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(30)]
+        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(40)]
 
     def calx(self, t, refID, MPCflag = 0):
         if MPCflag == 0:
