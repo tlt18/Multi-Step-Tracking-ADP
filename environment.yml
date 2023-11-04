@@ -1,13 +1,16 @@
-name: Tracking
+name: tracking
 channels:
-  - conda-forge
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge
   - defaults
 dependencies:
-  - numpy
+  - python=3.8
+  - numpy>1.16.0
   - matplotlib
-  - torch
-  - casadi
+  - pytorch>=1.13.0
   - seaborn
-  - tensorboard
+  - tensorboard>=2.5.0
   - onnx
-  - gym
+  - pip
+  - pip:
+    - casadi
+    - gym
