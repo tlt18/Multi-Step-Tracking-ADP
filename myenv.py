@@ -203,14 +203,14 @@ class TrackingEnv(gym.Env):
                 15 * torch.pow(state[:, -2] - state[:, 4], 2) +\
                 10 * torch.pow(state[:, -1] - state[:, 5], 2) +\
                 2 * torch.pow(control[:, 0], 2) +\
-                20 * torch.pow(control[:, 1], 2)
+                80 * torch.pow(control[:, 1], 2)
         else:
             reward = \
                 15 * pow(state[-3] - state[3], 2) +\
                 15 * pow(state[-2] - state[4], 2) +\
                 10 * pow(state[-1] - state[5], 2) +\
                 2 * pow(control[0], 2) +\
-                20 * pow(control[1], 2)
+                80 * pow(control[1], 2)
         return reward
 
     def isDone(self, state, control):

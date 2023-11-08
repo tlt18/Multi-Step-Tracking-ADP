@@ -5,7 +5,7 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 
-ADP_dir = './Results_dir/refNum21/2023-11-02-16-10-21'
+ADP_dir = './Results_dir/refNum21/2023-11-06-16-07-35'
 env = TrackingEnv()
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
@@ -19,7 +19,7 @@ relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]
 # stateForIDC = torch.zeros([1, 122])
 stateForIDC = torch.rand([1, 122])
 # .onnx
-Model_save = ADP_dir + '/tlt_policy.onnx'
+Model_save = ADP_dir + '/policy_tlt.onnx'
 torch_out = policy(stateForIDC)
 # Export the model
 torch.onnx.export(policy,               # model being run

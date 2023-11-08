@@ -25,7 +25,7 @@ class trainConfig():
 
 class vehicleDynamicConfig():
     def __init__(self):
-        self.refV = 5
+        self.refV = 8
         # y_r = curveA * sin(curveK * x_r)
         self.curveK = 1/6
         self.curveA = 1
