@@ -12,8 +12,8 @@ from network import Actor, Critic
 from train import Train
 import simulation
 
-os.environ["OMP_NUM_THREADS"] = "4"
-torch.set_num_threads(4)
+os.environ["OMP_NUM_THREADS"] = "2"
+torch.set_num_threads(2)
 
 # mode setting
 isTrain = True

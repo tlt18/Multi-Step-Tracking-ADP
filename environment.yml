@@ -1,0 +1,17 @@
+name: tracking
+channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - numpy>1.16.0
+  - matplotlib
+  - pytorch>=1.13.0
+  - seaborn
+  - tensorboard>=2.5.0
+  - onnx
+  - pip
+  - pip:
+    - casadi
+    - gym
+    - onnxruntime
