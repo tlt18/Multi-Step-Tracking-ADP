@@ -99,7 +99,7 @@ class ActorForIDC(Actor):
         '''
         obs_nn = torch.zeros([1, self.inputSize])
         obs_nn[:, :3] = obs[:, :3]
-        tempState = torch.concat([obs[3:6], torch.zeros([1, 1]), obs[:, 14: 14+4*self.refNum]], dim=1) - obs[:, 10:14].repeat(1, self.refNum)        
+        tempState = torch.concat([obs[:, 3:6], torch.zeros([1, 1]), obs[:, 14: 14+4*(self.refNum-1)]], dim=1) - obs[:, 10:14].repeat(1, self.refNum)
         phi_ref = obs[:, 12]
         for i in range(self.refNum):
             relIndex = 4 * i + 3
