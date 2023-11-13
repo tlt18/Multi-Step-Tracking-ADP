@@ -5,13 +5,12 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 
-ADP_dir = './Results_dir/refNum21/2023-11-06-16-07-35'
+ADP_dir = './Results_dir/refNum21/2023-11-13-19-45-31'
 env = TrackingEnv()
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
 policy = ActorForIDC(relstateDim, actionDim)
-policy.loadParameters(ADP_dir)
-
+policy.loadParameters(ADP_dir + "/network")
 
 stateAdp = env.resetRandom(1, noise = 1, MPCflag = 0) # [v,omega,x,y,phi,xr,yr,phir]
 relState = env.relStateCal(stateAdp) # [v, omega, dL, dphi]

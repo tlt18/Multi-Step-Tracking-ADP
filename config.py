@@ -20,12 +20,12 @@ class trainConfig():
         self.sampleSize = 256
         self.warmBuffer = 4 * 256
         self.capacity = 256000
-        self.tanLine = False
+        self.tanLine = True
 
 
 class vehicleDynamicConfig():
     def __init__(self):
-        self.refV = 8
+        self.refV = 5
         # y_r = curveA * sin(curveK * x_r)
         self.curveK = 1/6
         self.curveA = 1
@@ -38,12 +38,12 @@ class vehicleDynamicConfig():
         # 车辆参数
         # TODO: 参数是否合理？
         self.T = 0.1  # 时间间隔
-        self.m = 1520  # 自车质量
-        self.a = 1.19  # 质心到前轴的距离
-        self.b = 1.46  # 质心到后轴的距离
-        self.kf = -155495  # 前轮总侧偏刚度
-        self.kr = -155495  # 后轮总侧偏刚度
-        self.Iz = 2642  # 转动惯量
+        self.m = 1880  # 自车质量
+        self.a = 1.325  # 质心到前轴的距离
+        self.b = 1.325  # 质心到后轴的距离
+        self.kf = -190000  # 前轮总侧偏刚度
+        self.kr = -190000  # 后轮总侧偏刚度
+        self.Iz = 2000  # 转动惯量
 
         # 初始状态
         self.initState = [0, 0, math.atan(self.curveA * self.curveK), self.refV, 0, 0]

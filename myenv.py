@@ -16,6 +16,9 @@ from matplotlib.pyplot import MultipleLocator
 from config import vehicleDynamicConfig
 from network import Actor, Critic
 
+DISQUAN = 20
+
+
 class TrackingEnv(gym.Env):
     def __init__(self):
         super().__init__()
@@ -45,8 +48,8 @@ class TrackingEnv(gym.Env):
         # action space
         # u = [acc, delta]
         # If you modify the range, you must modify the output range of Actor.
-        self.actionLow = [-2, -0.3]
-        self.actionHigh = [2, 0.3]
+        self.actionLow = [-2, -0.05]
+        self.actionHigh = [2, 0.05]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
                        high=np.array(self.actionHigh), dtype=np.float64)
@@ -351,12 +354,13 @@ class TrackingEnv(gym.Env):
         batchSize = state.size(0)
         relState = torch.empty([batchSize, self.relstateDim])
         relState[:, :3] = state[:, :3]
-        tempState = state[:, 3:-3] - state[:, -3:].repeat(1, self.refNum) # difference of state isn't relative state
+        # coordinate transformation: the first reference state is the origin
+        tempState = torch.concat([state[:, -3:], state[:, 6:-3]], dim=1) - state[:, 3:6].repeat(1, self.refNum) # difference of state isn't relative state
         for i in range(self.refNum):
             relIndex = 4 * i + 3
             tempIndex = 3 * i
-            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[:, -1]) + tempState[:, tempIndex+1] * torch.sin(state[:, -1])
-            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[:, -1])) + tempState[:, tempIndex+1] *  torch.cos(state[:, -1])
+            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[:, 5]) + tempState[:, tempIndex+1] * torch.sin(state[:, 5])
+            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[:, 5])) + tempState[:, tempIndex+1] *  torch.cos(state[:, 5])
             relState[:, relIndex + 2] = torch.cos(tempState[:, tempIndex + 2])
             relState[:, relIndex + 3] = torch.sin(tempState[:, tempIndex + 2])
         return relState
@@ -490,11 +494,9 @@ class TrackingEnv(gym.Env):
         if refIDinit != None:
             refID = torch.ones(stateNum) * refIDinit
         elif refIDinit == None:
-            refID = torch.floor(torch.rand(stateNum) * 3)
-            refID[refID==2] = torch.zeros(sum(refID==2))
+            refID = torch.floor(torch.rand(stateNum) * DISQUAN)
         reft = torch.zeros(stateNum)
-        reft[refID==0] = torch.rand(sum(refID==0)) * 12 * np.pi /5
-        reft[refID==1] = torch.rand(sum(refID==1)) * 28
+        reft = torch.rand(stateNum) * 124 / self.refV # 124 is the total length of the trajectory
         if noise == -1:
             reft = reft * 0
             noise = 0
@@ -506,17 +508,17 @@ class TrackingEnv(gym.Env):
         newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 5 * noise
         # v: [-self.refV/10, self.refV/10]
         newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * self.refV / 10 * noise
-        # omega: [-0.5, 0.5]
-        newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * 0.5 * noise
+        # omega: [-0.1, 0.1]
+        newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * 0.1 * noise
         # [xr, yr, phir] * refNum
         for i in range(self.refNum):
             newState[:, 3 * i + 3] = self.trajectoryList.calx(reft + i * self.T, refID)
             newState[:, 3 * i + 4] = self.trajectoryList.caly(reft + i * self.T, refID)
             newState[:, 3 * i + 5] = self.trajectoryList.calphi(reft + i * self.T, refID)
         # x, y, phi
-        newState[:, -3] = newState[:, 3] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 1 * noise
-        newState[:, -2] = newState[:, 4] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 1 * noise
-        newState[:, -1] = newState[:, 5] + 2 * (torch.rand(stateNum) - 1/2) * np.pi / 15 * noise
+        newState[:, -3] = newState[:, 3] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 0.5 * noise
+        newState[:, -2] = newState[:, 4] + 2 * (torch.rand(stateNum) - 1/2) * self.refV * self.T * 0.5 * noise
+        newState[:, -1] = newState[:, 5] + 2 * (torch.rand(stateNum) - 1/2) * np.pi / 40 * noise
         if MPCflag == 0:
             return newState, info
         else:
@@ -524,7 +526,12 @@ class TrackingEnv(gym.Env):
 
 class MultiRefDynamics():
     def __init__(self) -> None:
-        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(40)]
+        # TODO: change for IDC training
+        # tan(15*pi/180) = 0.2679
+        maxTan = 0.2679
+        angle_list = np.linspace(0, maxTan, DISQUAN)
+        DLCc = 30.01
+        self.refTrajectory = [DLC(DLCa = 30.01, DLCb = 30.01, DLCc = DLCc, DLCh = DLCc * tan_) for tan_ in angle_list]
 
     def calx(self, t, refID, MPCflag = 0):
         if MPCflag == 0:
@@ -571,28 +578,29 @@ class sineCurve():
         return torch.atan(self.A * self.K * torch.cos(self.K * self.refV * t))
 
 class DLC():
-    def __init__(self, DLCa = 30.01, DLCb = 50, DLCh = 3.5) -> None:
+    def __init__(self, DLCa = 30.01, DLCb = 30.01, DLCc = 30.01, DLCh = 3.5) -> None:
         self.DLCa = DLCa
         self.DLCb = DLCb
+        self.DLCc = DLCc
         self.DLCh = DLCh
-        self.refV = 5
+        self.refV = 5 # FIXME: read from config
     
     def calx(self, t: torch.Tensor) -> torch.Tensor:
         # fixed speed
         return self.refV * t
 
-    def caly(self, t: torch.Tensor) -> torch.Tensor:
+    def caly(self, t: torch.Tensor) -> torch.Tensor:        
         x = self.refV * t
         refy = torch.empty_like(x)
         temp = (x < self.DLCa)
         refy[temp] = 0
-        temp = (x > self.DLCa) & (x < 2 * self.DLCa)
-        refy[temp] = self.DLCh / self.DLCa * (x[temp] - self.DLCa)
-        temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+        temp = (x > self.DLCa) & (x < self.DLCa + self.DLCc)
+        refy[temp] = self.DLCh / self.DLCc * (x[temp] - self.DLCa)
+        temp = (x > self.DLCa + self.DLCc) & (x < self.DLCa + self.DLCc + self.DLCb)
         refy[temp] = self.DLCh
-        temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
-        refy[temp] = - self.DLCh / self.DLCa * (x[temp] - 3 * self.DLCa - self.DLCb)
-        temp = (x > 3 * self.DLCa + self.DLCb)
+        temp = (x > self.DLCa + self.DLCc + self.DLCb) & (x < self.DLCa + self.DLCc * 2 + self.DLCb)
+        refy[temp] = - self.DLCh / self.DLCc * (x[temp] - self.DLCa - self.DLCc * 2 - self.DLCb)
+        temp = (x > self.DLCa + self.DLCc * 2 + self.DLCb)
         refy[temp] = 0
         return refy
 
@@ -601,13 +609,13 @@ class DLC():
         refphi = torch.empty_like(x)
         temp = (x < self.DLCa)
         refphi[temp] = 0
-        temp = (x > self.DLCa) & (x < 2 * self.DLCa)
-        refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCa))
-        temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+        temp = (x > self.DLCa) & (x < self.DLCa + self.DLCc)
+        refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCc))
+        temp = (x > self.DLCa + self.DLCc) & (x < self.DLCa + self.DLCc + self.DLCb)
         refphi[temp] = 0
-        temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
-        refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCa))
-        temp = (x > 3 * self.DLCa + self.DLCb)
+        temp = (x > self.DLCa + self.DLCc + self.DLCb) & (x < self.DLCa + self.DLCc * 2 + self.DLCb)
+        refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCc))
+        temp = (x > self.DLCa + self.DLCc * 2 + self.DLCb)
         refphi[temp] = 0
         return refphi
 

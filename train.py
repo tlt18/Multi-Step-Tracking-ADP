@@ -4,9 +4,10 @@ from config import trainConfig
 import os
 import matplotlib.pyplot as plt
 from replaybuffer import ReplayBuffer
+from myenv import TrackingEnv
 
 class Train():
-    def __init__(self, env, log_dir):
+    def __init__(self, env: TrackingEnv, log_dir):
         self.env = env
         self.lossIteraValue = None
         self.lossIteraPolicy = None
@@ -55,15 +56,12 @@ class Train():
             self.buffer.push(torch.cat([self.sampleData[i], self.sampleInfo[i]], dim = -1))
 
     def policyEvaluate(self, policy, value):
-        # TODO: warm buffer
         while len(self.buffer) < self.warmBuffer:
             self.update(policy)
         # use replay buffer
         batchData_ = torch.stack(self.buffer.sample(self.batchSize))
         self.batchData = batchData_[:, :-2]
         self.batchInfo = batchData_[:, -2:]
-        # use sample data
-        # self.batchData = self.sampleData
 
         relState = self.env.relStateCal(self.batchData)
         valuePredict = value(relState)

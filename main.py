@@ -12,7 +12,7 @@ from network import Actor, Critic
 from train import Train
 import simulation
 
-cpu_num = 4
+cpu_num = 2
 os.environ ['OMP_NUM_THREADS'] = str(cpu_num)
 os.environ ['OPENBLAS_NUM_THREADS'] = str(cpu_num)
 os.environ ['MKL_NUM_THREADS'] = str(cpu_num)
@@ -47,6 +47,7 @@ log_dir = "./Results_dir/refNum"+str(refNum)+'/'+ datetime.now().strftime("%Y-%m
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(log_dir + '/train', exist_ok=True)
 os.makedirs(log_dir + '/code', exist_ok=True)
+os.makedirs(log_dir + '/network', exist_ok=True)
 
 shutil.copy('./config.py', log_dir + '/code/config.py')
 shutil.copy('./main.py', log_dir + '/code/main.py')
@@ -81,8 +82,8 @@ if isTrain:
             print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:10f}, policy lr: {:10f}".format(
                 iterarion, train.lossIteraValue, train.lossIteraPolicy, value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
             # save parameters
-            value.saveParameters(log_dir)
-            policy.saveParameters(log_dir)
+            value.saveParameters(log_dir + "/network", iterarion)
+            policy.saveParameters(log_dir + "/network", iterarion)
             # test in real time
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'sine')
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'DLC')
@@ -90,8 +91,8 @@ if isTrain:
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnRight')
             env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'RandomTest')
             # test in virtual time
-            rewardSum1 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 0)
-            rewardSum2 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 1)
+            rewardSum1 = simulation.simuVirtualTraning(env, log_dir + "/network", iterarion, noise = -1, refIDinit = 0)
+            rewardSum2 = simulation.simuVirtualTraning(env, log_dir + "/network", iterarion, noise = -1, refIDinit = 1)
             dataWriter.add_scalar('Sine cost', rewardSum1, iterarion)
             dataWriter.add_scalar('DLC cost', rewardSum2, iterarion)
             print("Accumulated Cost in sine is {:.4f}".format(rewardSum1))

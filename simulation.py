@@ -26,9 +26,9 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
     policy = Actor(relstateDim, actionDim)
-    policy.loadParameters(ADP_dir)
+    policy.loadParameters(ADP_dir + "/network")
     value = Critic(relstateDim, 1)
-    value.loadParameters(ADP_dir)
+    value.loadParameters(ADP_dir + "/network")
     solver = Solver(env)
     # refIDinit
     if curveType == 'sine':
@@ -669,14 +669,14 @@ def calRelError(ADP, MPC, title, simu_dir, isPlot = False, isPrint = True):
         plt.close()
     return relativeErrorMean, relativeErrorMax
 
-def simuVirtualTraning(env, ADP_dir, noise = -1, refIDinit = 0):
+def simuVirtualTraning(env, ADP_dir, iterarion, noise = -1, refIDinit = 0):
     config = MPCConfig()
     mpcstep = max(config.MPCStep)
     relstateDim = env.relstateDim
     actionDim = env.actionSpace.shape[0]
     # ADP
     policy = Actor(relstateDim, actionDim)
-    policy.loadParameters(ADP_dir)
+    policy.loadParameters(ADP_dir, iterarion)
     count = 0
     stateAdp, infoADP = env.resetSpecific(env.testSampleNum, noise = noise, refIDinit = refIDinit)
     controlADPList = np.empty(0)
