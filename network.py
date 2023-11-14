@@ -8,7 +8,7 @@ from config import vehicleDynamicConfig
 class Actor(nn.Module):
     def __init__(self, inputSize, outputSize, lr=0.001):
         super().__init__()
-        self._out_gain = torch.FloatTensor([2.0, 0.05])
+        self._out_gain = torch.FloatTensor([2.0, 0.08])
         # self._norm_matrix = 1 * \
         #     torch.tensor([1, 1, 1, 1], dtype=torch.float32)
         self._norm_matrix = torch.ones(inputSize, dtype=torch.float32)
@@ -77,6 +77,9 @@ class ActorForIDC(Actor):
         self.inputSize = inputSize 
 
     def forward(self, x):
+        '''
+        return: [delta, acc]
+        '''
         x = self.preprocess(x)
         # x for NN: [u, v, w, [delta_x, delta_y, delta_phi] * N]
         x = super().forward(x)
@@ -97,9 +100,9 @@ class ActorForIDC(Actor):
             Y = -(x-xr) * sin(phir) + (y-yr) * cos(phir)
             PHI = phi - phir
         '''
-        obs_nn = torch.zeros([1, self.inputSize])
+        obs_nn = torch.zeros([obs.shape[0], self.inputSize])
         obs_nn[:, :3] = obs[:, :3]
-        tempState = torch.concat([obs[:, 3:6], torch.zeros([1, 1]), obs[:, 14: 14+4*(self.refNum-1)]], dim=1) - obs[:, 10:14].repeat(1, self.refNum)
+        tempState = torch.concat([obs[:, 3:6], torch.zeros([obs.shape[0], 1]), obs[:, 14: 14+4*(self.refNum-1)]], dim=1) - obs[:, 10:14].repeat(1, self.refNum)
         phi_ref = obs[:, 12]
         for i in range(self.refNum):
             relIndex = 4 * i + 3
