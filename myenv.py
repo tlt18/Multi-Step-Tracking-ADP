@@ -27,6 +27,7 @@ class TrackingEnv(gym.Env):
         self.DLCh = config.DLCh
         self.DLCa = config.DLCa
         self.DLCb = config.DLCb
+        self.DLCc = config.DLCc
         self.curvePhi = config.curvePhi
         # vehicle parameters
         self.T = config.T  # time interval
@@ -45,8 +46,8 @@ class TrackingEnv(gym.Env):
         # action space
         # u = [acc, delta]
         # If you modify the range, you must modify the output range of Actor.
-        self.actionLow = [-2, -0.3]
-        self.actionHigh = [2, 0.3]
+        self.actionLow = [-2, -0.05]
+        self.actionHigh = [2, 0.05]
         self.actionSpace = \
             spaces.Box(low=np.array(self.actionLow),
                        high=np.array(self.actionHigh), dtype=np.float64)
@@ -82,8 +83,8 @@ class TrackingEnv(gym.Env):
         newState[:, 0] = self.refV + 2 * (torch.rand(stateNum) - 1/2 ) * self.refV / 5 * noise
         # v: [-self.refV/5, self.refV/5]
         newState[:, 1] = 2 * (torch.rand(stateNum) - 1/2) * self.refV / 5 * noise
-        # omega: [-1, 1]
-        newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * 1 * noise
+        # omega: [-0.2, 0.2]
+        newState[:, 2] = 2 * (torch.rand(stateNum) - 1/2) * 0.2 * noise
         # x, y, phi
         newState[:, -3:-1] = torch.zeros((stateNum,2))
         newState[:, -1] = torch.zeros(stateNum)
@@ -100,9 +101,9 @@ class TrackingEnv(gym.Env):
         # output: N steps reference point
         if MPCflag == 0:
             refState = torch.empty((state.size(0), 3 * self.refNum))
-            # +- self.refV * self.T * 1.5
-            refState[:, 0] = state[:, 0] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.5 * noise
-            refState[:, 1] = state[:, 1] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.5 * noise
+            # +- self.refV * self.T * 1.0
+            refState[:, 0] = state[:, 0] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.0 * noise
+            refState[:, 1] = state[:, 1] + 2 * (torch.rand(state.size(0)) - 1/2) * self.refV * self.T * 1.0 * noise
             # +-pi/15
             refState[:, 2] = state[:, 2] + 2 * (torch.rand(state.size(0)) - 1/2) * np.pi / 15 * noise
             # refState[:, 2] = torch.normal(state[:, 2], 0.05 / 2 * noise)
@@ -310,16 +311,16 @@ class TrackingEnv(gym.Env):
                 temp = (x < self.DLCa)
                 refy[temp] = 0
                 refphi[temp] = 0
-                temp = (x > self.DLCa) & (x < 2 * self.DLCa)
-                refy[temp] = self.DLCh / self.DLCa * (x[temp] - self.DLCa)
-                refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCa))
-                temp = (x > 2 * self.DLCa) & (x < 2 * self.DLCa + self.DLCb)
+                temp = (x > self.DLCa) & (x < self.DLCa + self.DLCc)
+                refy[temp] = self.DLCh / self.DLCc * (x[temp] - self.DLCa)
+                refphi[temp] = torch.atan(torch.tensor(self.DLCh / self.DLCc))
+                temp = (x > self.DLCa + self.DLCc) & (x < self.DLCa + self.DLCc + self.DLCb)
                 refy[temp] = self.DLCh
                 refphi[temp] = 0
-                temp = (x > 2 * self.DLCa + self.DLCb) & (x < 3 * self.DLCa + self.DLCb)
-                refy[temp] = - self.DLCh / self.DLCa * (x[temp] - 3 * self.DLCa - self.DLCb)
-                refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCa))
-                temp = (x > 3 * self.DLCa + self.DLCb)
+                temp = (x > self.DLCa + self.DLCc + self.DLCb) & (x < self.DLCa + self.DLCc * 2 + self.DLCb)
+                refy[temp] = - self.DLCh / self.DLCc * (x[temp] - self.DLCa - self.DLCc * 2 - self.DLCb)
+                refphi[temp] = - torch.atan(torch.tensor(self.DLCh / self.DLCc))
+                temp = (x > self.DLCa + self.DLCc * 2 + self.DLCb)
                 refy[temp] = 0
                 refphi[temp] = 0
                 return refy, refphi

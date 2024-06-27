@@ -32,6 +32,7 @@ class vehicleDynamic():
         self.DLCh = 3.5
         self.DLCa = 30
         self.DLCb = 50
+        self.DLCc = self.DLCh * 1.732
         self.curvePhi = np.pi/60
 
         # 车辆参数

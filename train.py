@@ -4,9 +4,10 @@ from config import trainConfig
 import os
 import matplotlib.pyplot as plt
 from replaybuffer import ReplayBuffer
+from myenv import TrackingEnv
 
 class Train():
-    def __init__(self, env, log_dir):
+    def __init__(self, env: TrackingEnv, log_dir):
         self.env = env
         self.lossIteraValue = None
         self.lossIteraPolicy = None

@@ -24,6 +24,9 @@ config = trainConfig()
 env = TrackingEnv()
 env.seed(0)
 
+os.environ["OMP_NUM_THREADS"] = "2"
+torch.set_num_threads(2)
+
 use_gpu = torch.cuda.is_available()
 relstateDim = env.relstateDim
 actionDim = env.actionSpace.shape[0]
