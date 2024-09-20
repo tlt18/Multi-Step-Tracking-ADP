@@ -544,7 +544,7 @@ class TrackingEnv(gym.Env):
         
 class MultiRefDynamics():
     def __init__(self) -> None:
-        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(30)]
+        self.refTrajectory = [sineCurve(1, 1/6), DLC(30.01, 50, 3.5), Circle(30), randomCurve("./Simulation_dir", 3)]
 
     def calx(self, t, refID, MPCflag = 0):
         if MPCflag == 0:
@@ -572,6 +572,87 @@ class MultiRefDynamics():
             return phi
         else:
             return self.calphi(torch.tensor([t]), refID, MPCflag = 0)[0].tolist()
+
+class randomCurve():
+    # FIXME: hard code
+    T = 0.1
+    refV = 5
+    curvePhi = np.pi/30
+    trjsteps = 500
+
+    def __init__(self, data_root: str, id: int) -> None:
+        '''
+        check if f"{data_root}/randomCurve_{id}.npy" exists
+        if exists, load it
+        if not, generate it
+        '''
+        self.data_root = data_root
+        self.id = id
+        self.file_path = f"{data_root}/randomCurve_{id}.npy"
+
+        if os.path.exists(self.file_path):
+            self.load_data()
+            print(f"randomCurve_{id} loaded")
+        else:
+            self.generate_data()
+            self.save_data()
+            print(f"randomCurve_{id} generated")
+        
+    def load_data(self):
+        data = np.load(self.file_path, allow_pickle=True).item()
+        self.refx = torch.tensor(data['refx'])
+        self.refy = torch.tensor(data['refy'])
+        self.refphi = torch.tensor(data['refphi'])
+
+    def generate_data(self):
+        self.refx = torch.zeros(self.trjsteps + 100)
+        self.refy = torch.zeros(self.trjsteps + 100)
+        self.refphi = torch.zeros(self.trjsteps + 100)
+    
+        randomPhi = torch.normal(torch.zeros(self.trjsteps + 100), 1)
+        randomL = torch.normal(torch.zeros(self.trjsteps + 100), 1)
+        weight = 0.3
+        for i in range(1, self.trjsteps + 100):
+            # smooth
+            randomPhi[i] = weight * randomPhi[i] + (1 - weight) * randomPhi[i - 1]
+            randomL[i] = weight * randomL[i] + (1 - weight) * randomL[i - 1]
+            # update
+            self.refphi[i] = self.refphi[i - 1] + randomPhi[i] * self.curvePhi
+            refDeltaX = self.T * self.refV + randomL[i] * self.refV * self.T / 5
+            self.refx[i] = self.refx[i - 1] + refDeltaX * torch.cos(self.refphi[i])
+            self.refy[i] = self.refy[i - 1] + refDeltaX * torch.sin(self.refphi[i])
+
+    def save_data(self):
+        data = {
+            'refx': self.refx.numpy(),
+            'refy': self.refy.numpy(),
+            'refphi': self.refphi.numpy()
+        }
+        np.save(self.file_path, data)
+
+    def time2step(T, tolerance=1e-2):
+        def decorator(func):
+            def wrapper(self, t, *args, **kwargs):
+                ratio = t / T
+                rounded_ratio = torch.round(ratio)
+                if abs(ratio - rounded_ratio) > tolerance:
+                    raise ValueError(f"t/T is not close to an integer: t={t}, T={T}, ratio={ratio}")
+                step = int(rounded_ratio)
+                return func(self, step, *args, **kwargs)
+            return wrapper
+        return decorator
+
+    @time2step(T)
+    def calx(self, step: int) -> torch.Tensor:
+        return self.refx[step]
+    
+    @time2step(T)
+    def caly(self, step: int) -> torch.Tensor:
+        return self.refy[step]
+    
+    @time2step(T)
+    def calphi(self, step: int) -> torch.Tensor:
+        return self.refphi[step]
 
 class sineCurve():
     def __init__(self, A = 1, K = 1/6) -> None:
