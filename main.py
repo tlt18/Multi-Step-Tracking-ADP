@@ -5,6 +5,7 @@ from datetime import datetime
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
+from tqdm import trange
 
 from config import trainConfig, vehicleDynamicConfig
 from myenv import TrackingEnv
@@ -59,10 +60,9 @@ dataWriter = SummaryWriter(log_dir + '/train')
 if isTrain: 
     print("----------------------Start Training!----------------------")
     train = Train(env, log_dir+'/train')
-    iterarion = 0
     lossListValue = 0
     timeBegin = time.time()
-    while iterarion < config.iterationMax:
+    for iteration in trange(config.iterationMax):
         # PEV
         train.policyEvaluate(policy, value)
         # PIM
@@ -70,25 +70,25 @@ if isTrain:
         # update
         train.update(policy)
         # store loss
-        dataWriter.add_scalar('Policy Loss', train.lossIteraPolicy.mean(), iterarion)
-        dataWriter.add_scalar('Value Loss', train.lossIteraValue.mean(), iterarion)
-        if iterarion % config.iterationSave == 0 or iterarion == config.iterationMax - 1:
+        dataWriter.add_scalar('Policy Loss', train.lossIteraPolicy.mean(), iteration)
+        dataWriter.add_scalar('Value Loss', train.lossIteraValue.mean(), iteration)
+        if iteration % config.iterationSave == 0 or iteration == config.iterationMax - 1:
             print("iteration: {}, LossValue: {:.4f}, LossPolicy: {:.4f}, value lr: {:10f}, policy lr: {:10f}".format(
-                iterarion, train.lossIteraValue, train.lossIteraPolicy, value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
+                iteration, train.lossIteraValue, train.lossIteraPolicy, value.opt.param_groups[0]['lr'], policy.opt.param_groups[0]['lr']))
             # save parameters
             value.saveParameters(log_dir)
             policy.saveParameters(log_dir)
             # test in real time
-            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'sine')
-            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'DLC')
-            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnLeft')
-            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'TurnRight')
-            env.policyTestReal(policy, iterarion, log_dir+'/train', curveType = 'RandomTest')
+            env.policyTestReal(policy, iteration, log_dir+'/train', curveType = 'sine')
+            env.policyTestReal(policy, iteration, log_dir+'/train', curveType = 'DLC')
+            env.policyTestReal(policy, iteration, log_dir+'/train', curveType = 'TurnLeft')
+            env.policyTestReal(policy, iteration, log_dir+'/train', curveType = 'TurnRight')
+            env.policyTestReal(policy, iteration, log_dir+'/train', curveType = 'RandomTest')
             # test in virtual time
             rewardSum1 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 0)
             rewardSum2 = simulation.simuVirtualTraning(env, log_dir, noise = -1, refIDinit = 1)
-            dataWriter.add_scalar('Sine cost', rewardSum1, iterarion)
-            dataWriter.add_scalar('DLC cost', rewardSum2, iterarion)
+            dataWriter.add_scalar('Sine cost', rewardSum1, iteration)
+            dataWriter.add_scalar('DLC cost', rewardSum2, iteration)
             print("Accumulated Cost in sine is {:.4f}".format(rewardSum1))
             print("Accumulated Cost in DLC is {:.4f}".format(rewardSum2))
 
@@ -98,7 +98,6 @@ if isTrain:
             mi = (timeDelta - h * 3600)//60
             sec = timeDelta % 60
             print("Time consuming: {:.0f}h {:.0f}min {:.0f}sec".format(h, mi, sec))
-        iterarion += 1
 
 if isSimu: 
     simulation.main(log_dir, refNum)
