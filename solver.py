@@ -4,9 +4,10 @@ from config import MPCConfig
 from sys import path
 # path.append(r"F:/casadi-windows-py36-v3.5.5-64bit")
 from casadi import *
+import l4casadi as l4c
 
 class Solver():
-    def __init__(self, env = None):
+    def __init__(self, env = None, value = None):
         self._sol_dic = {'ipopt.print_level': 0,
                          'ipopt.sb': 'yes', 'print_time': 0}
         if env == None:
@@ -46,7 +47,7 @@ class Solver():
         )
         self.F = Function("F", [state, action], [stateNextt])
 
-        refState = SX.sym('refState',3 * self.env.refNum)
+        refState = MX.sym('refState',3 * self.env.refNum)
         cost = 15 * pow(state[0] - refState[0], 2) +\
             15 * pow(state[1] - refState[1], 2) +\
             10 * pow(state[2] - refState[2], 2) +\
@@ -54,7 +55,13 @@ class Solver():
             2 * pow(action[1], 2) # 
         self.calCost = Function('calCost', [state, refState, action], [cost])
 
-    def MPCSolver(self, initState, refState, predictStep, isReal = True, info = None):
+        nn_input = vertcat(state, refState)
+        l4c_model = l4c.L4CasADi(value, device='cpu')
+        nn_output = l4c_model(nn_input)
+
+        self.termCost = Function('termCost', [state, refState], [nn_output])
+
+    def MPCSolver(self, initState, refState, predictStep, isReal = True, info = None, terminalCost = False):
         # x: optimization variable
         # g: inequality constraints
         # J: cost function
@@ -65,7 +72,7 @@ class Solver():
         ubg = []
         G = []
         J = 0
-        Xk = SX.sym('X0', self.stateDim)
+        Xk = MX.sym('X0', self.stateDim)
         x += [Xk]
         lbx += initState
         ubx += initState
@@ -76,7 +83,7 @@ class Solver():
         refState_ = refState[:]
         for k in range(1, predictStep + 1):
             Uname = 'U' + str(k-1)
-            Uk = SX.sym(Uname, self.actionDim)
+            Uk = MX.sym(Uname, self.actionDim)
 
             # add control to optimization variable
             x += [Uk]
@@ -101,7 +108,7 @@ class Solver():
             # Dynamic Constraints
             XNext = self.F(Xk, Uk)
             Xname = 'X' + str(k)
-            Xk = SX.sym(Xname, self.stateDim)
+            Xk = MX.sym(Xname, self.stateDim)
             G += [XNext - Xk]
             lbg += [0 for _ in range(self.stateDim)]
             ubg += [0 for _ in range(self.stateDim)]
@@ -110,6 +117,9 @@ class Solver():
             x += [Xk]
             lbx += self.stateLow
             ubx += self.stateHigh
+        if terminalCost:
+            J += self.termCost(Xk, refState_[:3]) * gammar
+
         nlp = dict(f=J, g=vertcat(*G), x=vertcat(*x))
         solver = nlpsol('res', 'ipopt', nlp, self._sol_dic)
         # print(solver)
