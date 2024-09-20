@@ -4,7 +4,7 @@ import torch
 
 class trainConfig():
     def __init__(self):
-        self.iterationMax = 40000
+        self.iterationMax = 30000
         self.iterationPrint = 100
         self.iterationSave = 1000
         # self.lrPolicy = 1e-3
@@ -52,7 +52,7 @@ class vehicleDynamicConfig():
         self.testStepVirtual = 40
         # TODO: to 100
         self.testSampleNum = 1
-        self.refNum = 19
+        self.refNum = 9
         self.mpcstep = 60
 
 class MPCConfig():
