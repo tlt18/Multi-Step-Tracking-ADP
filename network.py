@@ -46,7 +46,7 @@ class Actor(nn.Module):
         torch.save(self.state_dict(), os.path.join(logdir, "actor.pth"))
 
     def loadParameters(self, load_dir):
-        self.load_state_dict(torch.load(os.path.join(load_dir, 'actor.pth')))
+        self.load_state_dict(torch.load(os.path.join(load_dir, 'actor.pth'), weights_only=True))
 
     def _initializeWeights(self):
         """
@@ -96,7 +96,7 @@ class Critic(nn.Module):
         torch.save(self.state_dict(), os.path.join(logdir, "critic.pth"))
 
     def loadParameters(self, load_dir):
-        self.load_state_dict(torch.load(os.path.join(load_dir, 'critic.pth')))
+        self.load_state_dict(torch.load(os.path.join(load_dir, 'critic.pth'), weights_only=True))
 
     def _initializeWeights(self):
         """

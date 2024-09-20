@@ -136,18 +136,18 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
         count = 0
-        controlMPCList = np.empty(0)
-        stateMPCList = np.empty(0)
-        rewardMPC = np.empty(0)
-        timeMPC = np.empty(0)
+        controlMPCList_c = np.empty(0)
+        stateMPCList_c = np.empty(0)
+        rewardMPC_c = np.empty(0)
+        timeMPC_c = np.empty(0)
         while(count < env.testStepReal[curveType]):
             # MPC
             start = time.time()
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc, terminalCost = True)
             end = time.time()
-            timeMPC = np.append(timeMPC, end - start)
-            stateMPCList = np.append(stateMPCList, np.array(stateMpc))
-            stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
+            timeMPC_c = np.append(timeMPC_c, end - start)
+            stateMPCList_c = np.append(stateMPCList_c, np.array(stateMpc))
+            stateMPCList_c = np.append(stateMPCList_c, np.array(refStateMpc))
             action = control[0].tolist()
             reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
             stateMpc = env.vehicleDynamic(
@@ -159,14 +159,14 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
                 env.trajectoryList.calphi(infoMpc[0]  + env.refNum * env.T, infoMpc[1], MPCflag = 1),
             ]
             infoMpc[0] += env.T
-            rewardMPC = np.append(rewardMPC, reward)
-            controlMPCList = np.append(controlMPCList, control[0])
+            rewardMPC_c = np.append(rewardMPC_c, reward)
+            controlMPCList_c = np.append(controlMPCList_c, control[0])
             count += 1
-        stateMPCList_c = np.reshape(stateMPCList, (-1, env.stateDim))
-        controlMPCList_c = np.reshape(controlMPCList, (-1, actionDim))
-        stateMPCList_c = np.delete(stateMPCList, range(plotDelete), 0)
-        controlMPCList_c = np.delete(controlMPCList, range(plotDelete), 0)
-        rewardMPC_c = np.delete(rewardMPC, range(plotDelete), 0)
+        stateMPCList_c = np.reshape(stateMPCList_c, (-1, env.stateDim))
+        controlMPCList_c = np.reshape(controlMPCList_c, (-1, actionDim))
+        stateMPCList_c = np.delete(stateMPCList_c, range(plotDelete), 0)
+        controlMPCList_c = np.delete(controlMPCList_c, range(plotDelete), 0)
+        rewardMPC_c = np.delete(rewardMPC_c, range(plotDelete), 0)
 
         saveMPC_c = np.concatenate((stateMPCList_c, controlMPCList_c), axis = 1)
         with open(simu_dir + "/simulationRealMPCTerminal_"+str(mpcstep)+".csv", 'wb') as f:
@@ -174,7 +174,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         rewardMPCAll_c.append(rewardMPC_c)
         stateMPCAll_c.append(stateMPCList_c)
         controlMPCAll_c.append(controlMPCList_c)
-        timeMPCAll_c.append(timeMPC_c_c)
+        timeMPCAll_c.append(timeMPC_c)
     
     
     print("Time consume ADP: {}ms".format(timeADP.mean() * 1000))
