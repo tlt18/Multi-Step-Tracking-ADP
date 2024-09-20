@@ -29,7 +29,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     policy.loadParameters(ADP_dir)
     value = Critic(relstateDim, 1)
     value.loadParameters(ADP_dir)
-    solver = Solver(env)
+    solver = Solver(env, value)
     # refIDinit
     if curveType == 'sine':
         initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 0) # [u,v,omega,[xr,yr,phir],x,y,phi]
@@ -37,6 +37,9 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 1)
     elif curveType == 'Circle':
         initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 2)
+    elif curveType == 'RandomTest':
+        initialState, info = env.resetSpecific(1, noise = -1, refIDinit = 3)
+
     # ADP
     stateAdp = initialState.clone()
     infoAdp = info.clone()
@@ -67,6 +70,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     with open(simu_dir + "/simulationRealADP.csv", 'wb') as f:
         np.savetxt(f, saveADP, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*env.refNum + "a,delta")
 
+    # MPC without terminal cost
     controlMPCAll = []
     stateMPCAll = []
     rewardMPCAll = []
@@ -118,6 +122,60 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         stateMPCAll.append(stateMPCList)
         controlMPCAll.append(controlMPCList)
         timeMPCAll.append(timeMPC)
+
+    # MPC with terminal cost
+    controlMPCAll_c = []
+    stateMPCAll_c = []
+    rewardMPCAll_c = []
+    timeMPCAll_c = []
+    for mpcstep in MPCStep:
+        env.randomTestReset()
+        print("Start Solving MPC with terminal cost-{}!".format(mpcstep))
+        tempstate = initialState[0].tolist()
+        infoMpc = info[0].tolist()
+        stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
+        refStateMpc = tempstate[3:-3]
+        count = 0
+        controlMPCList = np.empty(0)
+        stateMPCList = np.empty(0)
+        rewardMPC = np.empty(0)
+        timeMPC = np.empty(0)
+        while(count < env.testStepReal[curveType]):
+            # MPC
+            start = time.time()
+            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc, terminalCost = True)
+            end = time.time()
+            timeMPC = np.append(timeMPC, end - start)
+            stateMPCList = np.append(stateMPCList, np.array(stateMpc))
+            stateMPCList = np.append(stateMPCList, np.array(refStateMpc))
+            action = control[0].tolist()
+            reward = env.calReward(stateMpc[-3:] + refStateMpc + stateMpc[:3],action,MPCflag=1)
+            stateMpc = env.vehicleDynamic(
+                stateMpc[0], stateMpc[1], stateMpc[2], stateMpc[3], stateMpc[4], stateMpc[5], action[0], action[1], MPCflag=1)
+            refStateMpc[:-3] = refStateMpc[3:]
+            refStateMpc[-3:] = [
+                env.trajectoryList.calx(infoMpc[0] + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+                env.trajectoryList.caly(infoMpc[0]  + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+                env.trajectoryList.calphi(infoMpc[0]  + env.refNum * env.T, infoMpc[1], MPCflag = 1),
+            ]
+            infoMpc[0] += env.T
+            rewardMPC = np.append(rewardMPC, reward)
+            controlMPCList = np.append(controlMPCList, control[0])
+            count += 1
+        stateMPCList_c = np.reshape(stateMPCList, (-1, env.stateDim))
+        controlMPCList_c = np.reshape(controlMPCList, (-1, actionDim))
+        stateMPCList_c = np.delete(stateMPCList, range(plotDelete), 0)
+        controlMPCList_c = np.delete(controlMPCList, range(plotDelete), 0)
+        rewardMPC_c = np.delete(rewardMPC, range(plotDelete), 0)
+
+        saveMPC_c = np.concatenate((stateMPCList_c, controlMPCList_c), axis = 1)
+        with open(simu_dir + "/simulationRealMPCTerminal_"+str(mpcstep)+".csv", 'wb') as f:
+            np.savetxt(f, saveMPC_c, delimiter=',', fmt='%.4f', comments='', header="x,y,phi,u,v,omega," + "xr,yr,phir,"*env.refNum + "a,delta")
+        rewardMPCAll_c.append(rewardMPC_c)
+        stateMPCAll_c.append(stateMPCList_c)
+        controlMPCAll_c.append(controlMPCList_c)
+        timeMPCAll_c.append(timeMPC_c_c)
+    
     
     print("Time consume ADP: {}ms".format(timeADP.mean() * 1000))
     for i in range(len(MPCStep)):
@@ -697,7 +755,7 @@ def simuVirtualTraning(env, ADP_dir, noise = -1, refIDinit = 0):
 
     return rewardList.mean()
 
-def main(ADP_dir, RefNum):
+def main(ADP_dir, refNum):
     config = MPCConfig()
     MPCStep = config.MPCStep
 
@@ -716,9 +774,14 @@ def main(ADP_dir, RefNum):
     os.makedirs(simu_dir, exist_ok=True)
     simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'sine')
 
-    simu_dir = ADP_dir + '/simulationReal/DLC'
-    os.makedirs(simu_dir, exist_ok=True)
-    simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'DLC')
+    # simu_dir = ADP_dir + '/simulationReal/DLC'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'DLC')
+
+    # # add random test
+    # simu_dir = ADP_dir + '/simulationReal/randomTest'
+    # os.makedirs(simu_dir, exist_ok=True)
+    # simulationReal(MPCStep, ADP_dir, simu_dir, refNum = refNum, curveType = 'RandomTest')
 
     # simu_dir = ADP_dir + '/simulationReal/Circle'
     # os.makedirs(simu_dir, exist_ok=True)
@@ -810,6 +873,7 @@ def compareHorizon(ADP_list, refNum_list, curveType = 'sine', seed = 0):
     comparePlotADP(xADP, yADP, refNum_list, xName, yName, simu_dir, title, isRef = False)
 
 if __name__ == '__main__':
+    # --------------------------- test policy in real environment ---------------------------
     # ADP_dir_list = [\
     #     './Results_dir/refNum1/2023-03-06-09-52-34',\
     #     './Results_dir/refNum3/2023-03-07-15-22-02',\
@@ -831,6 +895,7 @@ if __name__ == '__main__':
         main(ADP_dir, refNum)
     
 
+    # --------------------------- test policy in real environment ---------------------------
     # parameters = {'axes.labelsize': 20,
     #     'axes.titlesize': 20,
     #     'xtick.labelsize': 18,
