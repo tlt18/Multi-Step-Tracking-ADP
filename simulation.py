@@ -344,6 +344,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title, isRef = True, xRef = xRef, yRef = yRef, lineWidth = 2)
     
     np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+    np.savetxt(simu_dir + f"/{title}-ref.csv", np.array([xRef, yRef]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
         safe_label = label.replace(' ', '_').replace('/', '')
         np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
@@ -360,10 +361,10 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title, figSize=figSize)
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title)
-    np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+    np.savetxt(simu_dir + f"/{title}-cum.csv", np.array([xADP, np.cumsum(yADP)]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
         safe_label = label.replace(' ', '_').replace('/', '')
-        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        np.savetxt(simu_dir + f"/{title}-cum-{safe_label}.csv", np.array([xMPC[idx], np.cumsum(yMPC[idx])]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     Ip_ADP = np.sqrt(np.mean(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2)))
     Ip_MPC = [np.sqrt(np.mean(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2))) for mpc in stateMPCAll]
@@ -424,10 +425,10 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title)
     
-    np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+    np.savetxt(simu_dir + f"/{title}-cum.csv", np.array([xADP, np.cumsum(np.abs(yMPC[idx]))]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
         safe_label = label.replace(' ', '_').replace('/', '')
-        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        np.savetxt(simu_dir + f"/{title}-cum-{safe_label}.csv", np.array([xMPC[idx], np.cumsum(np.abs(yMPC[idx]))]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     Iphi_ADP = np.sqrt(np.mean(np.power(stateADPList[:,2] * 180/np.pi - stateADPList[:,8] * 180/np.pi, 2)))
     Iphi_MPC = [np.sqrt(np.mean(np.power(mpc[:,2] * 180/np.pi - mpc[:,8] * 180/np.pi, 2))) for mpc in stateMPCAll]
@@ -449,10 +450,10 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     else:
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title)
 
-    np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+    np.savetxt(simu_dir + f"/{title}-cum.csv", np.array([xADP, np.cumsum(yADP)]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
         safe_label = label.replace(' ', '_').replace('/', '')
-        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        np.savetxt(simu_dir + f"/{title}-cum-{safe_label}.csv", np.array([xMPC[idx], np.cumsum(yMPC[idx])]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     # accumulated utility v.s. t
     yADP = np.cumsum(rewardADP)
