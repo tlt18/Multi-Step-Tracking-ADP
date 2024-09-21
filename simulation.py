@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime
 from turtle import color
+from tqdm import trange
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,8 +53,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     stateADPList = np.empty(0)
     rewardADP = np.empty(0)
     timeADP = np.empty(0)
-    count = 0
-    while(count < env.testStepReal[curveType]):
+    for count in trange(env.testStepReal[curveType], desc="Processing", unit="step"):
         stateADPList = np.append(stateADPList, stateAdp[0, -3:].numpy()) # x, y, phi
         stateADPList = np.append(stateADPList, stateAdp[0, :-3].numpy()) # u, v, omega, [xr, yr, phir]
         relState = env.relStateCal(stateAdp)
@@ -65,7 +65,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         stateAdp, reward, done, infoAdp = env.stepSpecificRef(stateAdp, controlAdp, infoAdp)
         controlADPList = np.append(controlADPList, controlAdp[0].numpy())
         rewardADP = np.append(rewardADP, reward.numpy())
-        count += 1
     stateADPList = np.reshape(stateADPList, (-1, env.stateDim))
     controlADPList = np.reshape(controlADPList, (-1, actionDim))
     stateADPList = np.delete(stateADPList, range(plotDelete), 0)
@@ -88,12 +87,11 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         infoMpc = info[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
-        count = 0
         controlMPCList = np.empty(0)
         stateMPCList = np.empty(0)
         rewardMPC = np.empty(0)
         timeMPC = np.empty(0)
-        while(count < env.testStepReal[curveType]):
+        for count in trange(env.testStepReal[curveType], desc="Processing", unit="step"):
             # MPC
             start = time.time()
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc)
@@ -114,7 +112,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
             infoMpc[0] += env.T
             rewardMPC = np.append(rewardMPC, reward)
             controlMPCList = np.append(controlMPCList, control[0])
-            count += 1
         stateMPCList = np.reshape(stateMPCList, (-1, env.stateDim))
         controlMPCList = np.reshape(controlMPCList, (-1, actionDim))
         stateMPCList = np.delete(stateMPCList, range(plotDelete), 0)
@@ -138,12 +135,11 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         infoMpc = info[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
-        count = 0
         controlMPCList_c = np.empty(0)
         stateMPCList_c = np.empty(0)
         rewardMPC_c = np.empty(0)
         timeMPC_c = np.empty(0)
-        while(count < env.testStepReal[curveType]):
+        for count in trange(env.testStepReal[curveType], desc="Processing", unit="step"):
             # MPC
             start = time.time()
             _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc, terminalCost = "one-step")
@@ -164,7 +160,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
             infoMpc[0] += env.T
             rewardMPC_c = np.append(rewardMPC_c, reward)
             controlMPCList_c = np.append(controlMPCList_c, control[0])
-            count += 1
         stateMPCList_c = np.reshape(stateMPCList_c, (-1, env.stateDim))
         controlMPCList_c = np.reshape(controlMPCList_c, (-1, actionDim))
         stateMPCList_c = np.delete(stateMPCList_c, range(plotDelete), 0)
