@@ -80,6 +80,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     rewardMPCAll = []
     timeMPCAll = []
     labelMPCAll = []
+        
     for mpcstep in MPCStep:
         env.randomTestReset()
         print("Start Solving MPC-{}!".format(mpcstep))
@@ -130,7 +131,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     # MPC with terminal cost
     for mpcstep in MPCStep:
         env.randomTestReset()
-        print("Start Solving MPC with terminal cost-{}!".format(mpcstep))
+        print("Start Solving MPC-{} with ont-step terminal cost!".format(mpcstep))
         tempstate = initialState[0].tolist()
         infoMpc = info[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
@@ -175,23 +176,22 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         timeMPCAll.append(timeMPC_c)
         labelMPCAll.append(f"MPC-{mpcstep} w/ 1-step TC")
 
-    # MPC with terminal cost
+    # MPC with N-step terminal cost
     for mpcstep in MPCStep:
         env.randomTestReset()
-        print("Start Solving MPC with terminal cost-{}!".format(mpcstep))
+        print("Start Solving MPC-{} with terminal cost-{}!".format(mpcstep, mpcstep))
         tempstate = initialState[0].tolist()
         infoMpc = info[0].tolist()
         stateMpc = tempstate[-3:] + tempstate[:3] # x, y, phi, u, v, omega
         refStateMpc = tempstate[3:-3]
-        count = 0
         controlMPCList_c = np.empty(0)
         stateMPCList_c = np.empty(0)
         rewardMPC_c = np.empty(0)
         timeMPC_c = np.empty(0)
-        while(count < env.testStepReal[curveType]):
+        for count in trange(env.testStepReal[curveType], desc="Processing", unit="step"):
             # MPC
             start = time.time()
-            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc, terminalCost = "one-step")
+            _, control = solver.MPCSolver(stateMpc, refStateMpc, mpcstep, isReal = True, info = infoMpc, terminalCost = "multi-step")
             end = time.time()
             timeMPC_c = np.append(timeMPC_c, end - start)
             stateMPCList_c = np.append(stateMPCList_c, np.array(stateMpc))
@@ -209,7 +209,6 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
             infoMpc[0] += env.T
             rewardMPC_c = np.append(rewardMPC_c, reward)
             controlMPCList_c = np.append(controlMPCList_c, control[0])
-            count += 1
         stateMPCList_c = np.reshape(stateMPCList_c, (-1, env.stateDim))
         controlMPCList_c = np.reshape(controlMPCList_c, (-1, actionDim))
         stateMPCList_c = np.delete(stateMPCList_c, range(plotDelete), 0)
@@ -224,7 +223,7 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         controlMPCAll.append(controlMPCList_c)
         timeMPCAll.append(timeMPC_c)
         labelMPCAll.append(f"MPC-{mpcstep} w/ {mpcstep}-step TC")
-    
+
     print("Time consume ADP: {}ms".format(timeADP.mean() * 1000))
     for label in labelMPCAll:
         print(f"Time consume {label}: {timeMPCAll[labelMPCAll.index(label)].mean() * 1000}ms")
@@ -346,7 +345,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     
     np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
-        np.savetxt(simu_dir + f"/{title}-{label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        safe_label = label.replace(' ', '_').replace('/', '')
+        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     # distance error v.s. t
     yADP = np.sqrt(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2))*100
@@ -362,7 +362,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
         comparePlot(xADP, xMPC, yADP, yMPC, labelMPCAll, xName, yName, simu_dir, title)
     np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
-        np.savetxt(simu_dir + f"/{title}-{label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        safe_label = label.replace(' ', '_').replace('/', '')
+        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     Ip_ADP = np.sqrt(np.mean(np.power(stateADPList[:, 0] - stateADPList[:, 6], 2) + np.power(stateADPList[:, 1] - stateADPList[:, 7], 2)))
     Ip_MPC = [np.sqrt(np.mean(np.power(mpc[:, 0] - mpc[:, 6], 2) + np.power(mpc[:, 1] - mpc[:, 7], 2))) for mpc in stateMPCAll]
@@ -425,7 +426,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
     
     np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
-        np.savetxt(simu_dir + f"/{title}-{label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        safe_label = label.replace(' ', '_').replace('/', '')
+        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     Iphi_ADP = np.sqrt(np.mean(np.power(stateADPList[:,2] * 180/np.pi - stateADPList[:,8] * 180/np.pi, 2)))
     Iphi_MPC = [np.sqrt(np.mean(np.power(mpc[:,2] * 180/np.pi - mpc[:,8] * 180/np.pi, 2))) for mpc in stateMPCAll]
@@ -449,7 +451,8 @@ def simulationReal(MPCStep, ADP_dir, simu_dir, refNum = None, curveType = 'sine'
 
     np.savetxt(simu_dir + f"/{title}.csv", np.array([xADP, yADP]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
     for idx, label in enumerate(labelMPCAll):
-        np.savetxt(simu_dir + f"/{title}-{label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
+        safe_label = label.replace(' ', '_').replace('/', '')
+        np.savetxt(simu_dir + f"/{title}-{safe_label}.csv", np.array([xMPC[idx], yMPC[idx]]), delimiter=',', fmt='%.4f', comments='', header=f"{xName},{yName}")
 
     # accumulated utility v.s. t
     yADP = np.cumsum(rewardADP)
