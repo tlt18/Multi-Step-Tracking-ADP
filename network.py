@@ -85,9 +85,11 @@ class Critic(nn.Module):
         self._initializeWeights()
 
     def forward(self, x):
+        x = x.view(1, -1)
         x = torch.mul(x, self._norm_matrix)
         x = self.layers(x)
-        return x.reshape(x.size(0))
+        return x
+        # return x.reshape(x.size(0))
 
     def predict(self, x):
         return self.forward(x).detach().numpy()
@@ -110,28 +112,3 @@ class Critic(nn.Module):
             if name in ['6']: # 将倒数第一层的权重设为0，网络正常训练
                 module.weight.data = module.weight.data * 0.0001
                 # module.bias.data = torch.zeros_like(module.bias)
-
-class MPCValue(Critic):
-    def forward(self, state, ref):
-        '''
-        Input:
-            state: x, y, phi, u, v, omega
-            ref: [xr, yr, phir] * refNum
-        output:
-            value: value of state
-        '''
-        # Step 1: calculate relative state
-        batchSize = state.size(0)
-        relState = torch.empty([batchSize, self.relstateDim])
-        relState[:, :3] = state[:, :3]
-        tempState = state[:, 3:-3] - state[:, -3:].repeat(1, self.refNum)
-        for i in range(self.refNum):
-            relIndex = 4 * i + 3
-            tempIndex = 3 * i
-            relState[:, relIndex] = tempState[:, tempIndex] * torch.cos(state[:, -1]) + tempState[:, tempIndex+1] * torch.sin(state[:, -1])
-            relState[:, relIndex + 1] = tempState[:, tempIndex] * (-torch.sin(state[:, -1])) + tempState[:, tempIndex+1] *  torch.cos(state[:, -1])
-            relState[:, relIndex + 2] = torch.cos(tempState[:, tempIndex + 2])
-            relState[:, relIndex + 3] = torch.sin(tempState[:, tempIndex + 2])
-        # Step 2: calculate value
-        value = super().forward(relState)
-        return value

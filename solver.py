@@ -8,7 +8,7 @@ import numpy as np
 import l4casadi as l4c
 
 class Solver():
-    def __init__(self, env = None, value = None):
+    def __init__(self, env = None, value = None, value_multi = None):
         self._sol_dic = {'ipopt.print_level': 0,
                          'ipopt.sb': 'yes', 'print_time': 0}
         if env == None:
@@ -55,13 +55,34 @@ class Solver():
             2 * pow(action[0], 2) +\
             2 * pow(action[1], 2) # 
         self.calCost = ca.Function('calCost', [state, refState, action], [cost])
-        
-        nn_input = ca.vertcat(state, refState)
-        l4c_model = l4c.L4CasADi(value, device='cpu')
-        nn_output = l4c_model(nn_input)
-        self.termCost = ca.Function('termCost', [state, refState], [nn_output])
 
-    def MPCSolver(self, initState, refState, predictStep, isReal = True, info = None, terminalCost = False):
+        relState = ca.vertcat(
+            state[3],
+            state[4],
+            state[5],
+            (refState[0] - state[0]) * ca.cos(state[2]) + (refState[1] - state[1]) * ca.sin(state[2]),
+            (refState[1] - state[1]) * ca.cos(state[2]) - (refState[0] - state[0]) * ca.sin(state[2]),
+            ca.cos(refState[2] - state[2]),
+            ca.sin(refState[2] - state[2])
+        )
+
+        relState_multi = [relState[:3]]
+        for i in range(1, self.env.refNum):
+            relState_i = [
+                (refState[3 * i] - state[0]) * ca.cos(state[2]) + (refState[3 * i + 1] - state[1]) * ca.sin(state[2]),
+                (refState[3 * i + 1] - state[1]) * ca.cos(state[2]) - (refState[3 * i] - state[0]) * ca.sin(state[2]),
+                ca.cos(refState[3 * i + 2] - state[2]),
+                ca.sin(refState[3 * i + 2] - state[2])
+            ]
+            relState_multi.extend(relState_i)
+        relState_multi = ca.vertcat(*relState_multi)
+
+        self.getrefState = ca.Function('getrefState', [state, refState], [relState])
+        self.getrefState_multi = ca.Function('getrefState_multi', [state, refState], [relState_multi])
+        self.value = value
+        self.value_multi = value_multi
+
+    def MPCSolver(self, initState, refState, predictStep, isReal = True, info = None, terminalCost = None):
         # x: optimization variable
         # g: inequality constraints
         # J: cost function
@@ -117,9 +138,14 @@ class Solver():
             x += [Xk]
             lbx += self.stateLow
             ubx += self.stateHigh
-        if terminalCost:
-            # J += self.termCost(Xk, refState_[:3]) * gammar
-            pass
+        if terminalCost == "one-step":
+            l4c_model = l4c.L4CasADi(self.value, device='cpu')
+            nn_input = self.getrefState(Xk, refState_) # only one step
+            J += gammar * l4c_model(nn_input)
+        elif terminalCost == "multi-step":
+            l4c_model = l4c.L4CasADi(self.value_multi, device='cpu')
+            nn_input = self.getrefState_multi(Xk, refState_)
+            J += gammar * l4c_model(nn_input)
 
         nlp = dict(f=J, g=ca.vertcat(*G), x=ca.vertcat(*x))
         solver = ca.nlpsol('res', 'ipopt', nlp, self._sol_dic)
