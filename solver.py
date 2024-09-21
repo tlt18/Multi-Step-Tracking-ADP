@@ -67,7 +67,7 @@ class Solver():
         )
 
         relState_multi = [relState[:3]]
-        for i in range(1, self.env.refNum):
+        for i in range(self.env.refNum):
             relState_i = [
                 (refState[3 * i] - state[0]) * ca.cos(state[2]) + (refState[3 * i + 1] - state[1]) * ca.sin(state[2]),
                 (refState[3 * i + 1] - state[1]) * ca.cos(state[2]) - (refState[3 * i] - state[0]) * ca.sin(state[2]),
