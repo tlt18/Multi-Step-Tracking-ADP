@@ -5,5 +5,6 @@
 /Save_dir/
 nohup.out
 unknown-0.0-py36_0.tar.bz2
-test.py
-ADP_MPC_compare.py
+/Result*/
+/.cache/
+/_l4c_generated/
